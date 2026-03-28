@@ -37,32 +37,39 @@ export function registerIpcHandlers(): void {
     return fetchMetadata(ytdlp, url);
   });
 
-  // ダウンロード開始（同時DL数制限付き）
+  // ダウンロード開始（同時DL数制限付き、TOCTOU防止）
   ipcMain.handle('start-download', async (event, url: string, resolution: string) => {
     const maxConcurrent = getSetting('maxConcurrentDownloads') || 2;
     if (activeDownloads.size >= maxConcurrent) {
       throw new Error(`Maximum concurrent downloads (${maxConcurrent}) reached. Wait for one to finish.`);
     }
 
-    const { ytdlp } = await ensureBinaries();
-    if (!ytdlp) throw new Error('yt-dlp not found');
-
+    // IDを先に予約してTOCTOU防止（同時リクエストが枠を超えない）
     const id = generateId();
-    const win = BrowserWindow.fromWebContents(event.sender);
+    activeDownloads.set(id, { id, cancel: () => {} });
 
-    const { cancel } = await startDownload(ytdlp, url, resolution, (progress: DownloadProgress) => {
-      // 進捗をRendererに送信
-      if (win && !win.isDestroyed()) {
-        win.webContents.send('download-progress', { id, ...progress });
-      }
-      // 完了・エラー・重複時はアクティブから除去
-      if (['complete', 'error', 'duplicate'].includes(progress.status)) {
-        activeDownloads.delete(id);
-      }
-    });
+    try {
+      const { ytdlp } = await ensureBinaries();
+      if (!ytdlp) throw new Error('yt-dlp not found');
 
-    activeDownloads.set(id, { id, cancel });
-    return id;
+      const win = BrowserWindow.fromWebContents(event.sender);
+
+      const { cancel } = await startDownload(ytdlp, url, resolution, (progress: DownloadProgress) => {
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('download-progress', { id, ...progress });
+        }
+        if (['complete', 'error', 'duplicate'].includes(progress.status)) {
+          activeDownloads.delete(id);
+        }
+      });
+
+      // cancel関数を更新
+      activeDownloads.set(id, { id, cancel });
+      return id;
+    } catch (e) {
+      activeDownloads.delete(id);
+      throw e;
+    }
   });
 
   // ダウンロードキャンセル
@@ -81,11 +88,21 @@ export function registerIpcHandlers(): void {
     return getAllSettings();
   });
 
-  // 設定更新（許可されたキーのみ）
-  const ALLOWED_KEYS = ['downloadPath', 'defaultResolution', 'ytdlpPath', 'ffmpegPath', 'maxConcurrentDownloads'] as const;
+  // 設定更新（許可されたキー + 型バリデーション）
+  const SETTING_VALIDATORS: Record<string, (v: unknown) => boolean> = {
+    downloadPath: (v) => typeof v === 'string' && v.length > 0,
+    defaultResolution: (v) => typeof v === 'string' && ['360p','480p','720p','1080p','1440p','2160p','best','mp3'].includes(v as string),
+    ytdlpPath: (v) => typeof v === 'string',
+    ffmpegPath: (v) => typeof v === 'string',
+    maxConcurrentDownloads: (v) => typeof v === 'number' && Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 10,
+  };
   ipcMain.handle('set-setting', async (_event, key: string, value: unknown) => {
-    if (!ALLOWED_KEYS.includes(key as any)) {
+    const validator = SETTING_VALIDATORS[key];
+    if (!validator) {
       throw new Error(`Invalid setting key: ${key}`);
+    }
+    if (!validator(value)) {
+      throw new Error(`Invalid value for ${key}: ${JSON.stringify(value)}`);
     }
     setSetting(key as any, value as any);
     return true;
@@ -104,10 +121,16 @@ export function registerIpcHandlers(): void {
     return null;
   });
 
+  // パス検証ヘルパー（prefix attack防止: path.sep付きで比較）
+  const isInsideDownloadDir = (targetPath: string): boolean => {
+    const dlPath = path.resolve(getSetting('downloadPath')) + path.sep;
+    const resolved = path.resolve(targetPath);
+    return resolved === dlPath.slice(0, -1) || resolved.startsWith(dlPath);
+  };
+
   // フォルダを開く（ダウンロードパス配下のみ許可）
   ipcMain.handle('open-folder', async (_event, folderPath: string) => {
-    const dlPath = getSetting('downloadPath');
-    if (!folderPath || !path.resolve(folderPath).startsWith(path.resolve(dlPath))) {
+    if (!folderPath || !isInsideDownloadDir(folderPath)) {
       throw new Error('Access denied: path outside download directory');
     }
     const error = await shell.openPath(folderPath);
@@ -116,8 +139,7 @@ export function registerIpcHandlers(): void {
 
   // ファイルのフォルダを開く（ダウンロードパス配下のみ許可）
   ipcMain.handle('show-in-folder', async (_event, filePath: string) => {
-    const dlPath = getSetting('downloadPath');
-    if (!filePath || !path.resolve(filePath).startsWith(path.resolve(dlPath))) {
+    if (!filePath || !isInsideDownloadDir(filePath)) {
       throw new Error('Access denied: path outside download directory');
     }
     shell.showItemInFolder(filePath);
