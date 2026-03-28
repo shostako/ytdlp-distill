@@ -3,7 +3,7 @@ import { useSettingsStore } from '../stores/settings-store';
 
 interface BinaryStatus {
   binary: string;
-  status: 'searching' | 'downloading' | 'extracting' | 'complete' | 'error';
+  status: 'searching' | 'downloading' | 'verifying' | 'extracting' | 'complete' | 'error';
   percent?: number;
   error?: string;
 }
@@ -59,8 +59,9 @@ export default function BinaryMissing() {
     switch (s.status) {
       case 'searching': return 'Searching...';
       case 'downloading': return s.percent ? `Downloading ${s.percent}%` : 'Downloading...';
+      case 'verifying': return 'Verifying SHA256...';
       case 'extracting': return 'Extracting...';
-      case 'complete': return 'Ready';
+      case 'complete': return 'Verified & Ready';
       case 'error': return `Error: ${s.error || 'Unknown'}`;
       default: return 'Waiting...';
     }
@@ -72,6 +73,7 @@ export default function BinaryMissing() {
     switch (s.status) {
       case 'searching': return 'text-[#8e8e93]';
       case 'downloading':
+      case 'verifying':
       case 'extracting': return 'text-[#4a9eff]';
       case 'complete': return 'text-[#30d158]';
       case 'error': return 'text-[#ff453a]';

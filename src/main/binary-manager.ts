@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import https from 'node:https';
 import http from 'node:http';
 import { execFile } from 'node:child_process';
@@ -13,17 +14,24 @@ const execFileAsync = promisify(execFile);
 
 const BIN_DIR = path.join(app.getPath('userData'), 'bin');
 
-const DOWNLOAD_URLS = {
+const DOWNLOAD_URLS: Record<BinaryName, string> = {
   'yt-dlp': 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe',
   'ffmpeg': 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip',
   'deno': 'https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip',
+};
+
+/** チェックサムファイルのURL（取得できない場合は検証スキップ） */
+const CHECKSUM_URLS: Record<BinaryName, string> = {
+  'yt-dlp': 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS',
+  'ffmpeg': 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip.sha256',
+  'deno': 'https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip.sha256sum',
 };
 
 export type BinaryName = 'yt-dlp' | 'ffmpeg' | 'deno';
 
 export interface DownloadStatus {
   binary: BinaryName;
-  status: 'searching' | 'downloading' | 'extracting' | 'complete' | 'error';
+  status: 'searching' | 'downloading' | 'verifying' | 'extracting' | 'complete' | 'error';
   percent?: number;
   error?: string;
 }
@@ -50,7 +58,6 @@ function downloadFile(url: string, dest: string, binaryName: BinaryName): Promis
 
       const mod = reqUrl.startsWith('https') ? https : http;
       mod.get(reqUrl, (res) => {
-        // リダイレクト処理
         if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
           doRequest(res.headers.location, redirectCount + 1);
           return;
@@ -87,10 +94,115 @@ function downloadFile(url: string, dest: string, binaryName: BinaryName): Promis
 }
 
 /**
- * zipを展開して指定exeを取り出す（Node.js標準のみ使用）
+ * URLからテキストを取得（リダイレクト対応）
+ */
+function fetchText(url: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const doRequest = (reqUrl: string, redirectCount = 0) => {
+      if (redirectCount > 5) {
+        reject(new Error('Too many redirects'));
+        return;
+      }
+
+      const mod = reqUrl.startsWith('https') ? https : http;
+      mod.get(reqUrl, (res) => {
+        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          doRequest(res.headers.location, redirectCount + 1);
+          return;
+        }
+
+        if (res.statusCode !== 200) {
+          reject(new Error(`HTTP ${res.statusCode}`));
+          return;
+        }
+
+        let data = '';
+        res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
+        res.on('end', () => resolve(data));
+      }).on('error', reject);
+    };
+
+    doRequest(url);
+  });
+}
+
+/**
+ * ファイルのSHA256ハッシュを計算
+ */
+function computeSha256(filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256');
+    const stream = fs.createReadStream(filePath);
+    stream.on('data', (data) => hash.update(data));
+    stream.on('end', () => resolve(hash.digest('hex')));
+    stream.on('error', reject);
+  });
+}
+
+/**
+ * 公式チェックサムを取得してファイル名に対応するハッシュを返す
+ */
+async function fetchExpectedHash(name: BinaryName): Promise<string | null> {
+  const url = CHECKSUM_URLS[name];
+  try {
+    const text = await fetchText(url);
+    const lines = text.trim().split('\n');
+
+    if (name === 'yt-dlp') {
+      // SHA2-256SUMS形式: "hash  filename"
+      for (const line of lines) {
+        if (line.includes('yt-dlp.exe') && !line.includes('_')) {
+          // "yt-dlp.exe" にマッチ、"yt-dlp_x86.exe" 等は除外
+          return line.split(/\s+/)[0].toLowerCase();
+        }
+      }
+    } else if (name === 'ffmpeg') {
+      // 単一ハッシュ値のみのファイル、または "hash  filename" 形式
+      const hash = lines[0].split(/\s+/)[0].trim();
+      if (hash.length === 64) return hash.toLowerCase();
+    } else if (name === 'deno') {
+      // "hash  filename" 形式
+      const hash = lines[0].split(/\s+/)[0].trim();
+      if (hash.length === 64) return hash.toLowerCase();
+    }
+
+    return null;
+  } catch {
+    // チェックサムファイルが取得できなくても続行
+    console.warn(`Could not fetch checksum for ${name}`);
+    return null;
+  }
+}
+
+/**
+ * SHA256検証。不一致なら例外を投げる。チェックサム取得不可なら警告のみ。
+ */
+async function verifySha256(filePath: string, name: BinaryName): Promise<void> {
+  sendStatus({ binary: name, status: 'verifying' });
+
+  const expected = await fetchExpectedHash(name);
+  if (!expected) {
+    console.warn(`SHA256 verification skipped for ${name}: checksum not available`);
+    return;
+  }
+
+  const actual = await computeSha256(filePath);
+
+  if (actual !== expected) {
+    // 不一致: ファイル削除して例外
+    fs.rmSync(filePath, { force: true });
+    throw new Error(
+      `SHA256 mismatch for ${name}! Expected: ${expected.slice(0, 16)}... Got: ${actual.slice(0, 16)}... File deleted.`
+    );
+  }
+
+  console.log(`SHA256 verified for ${name}: ${actual.slice(0, 16)}...`);
+}
+
+/**
+ * zipを展開して指定exeを取り出す
  */
 async function extractExeFromZip(zipPath: string, exeName: string, destDir: string): Promise<string> {
-  // PowerShellのExpand-Archiveでzip展開
   const tempDir = path.join(destDir, '_extract_tmp');
   fs.mkdirSync(tempDir, { recursive: true });
 
@@ -100,7 +212,6 @@ async function extractExeFromZip(zipPath: string, exeName: string, destDir: stri
       `Expand-Archive -Path '${zipPath}' -DestinationPath '${tempDir}' -Force`,
     ], { timeout: 120000 });
 
-    // exe を再帰検索
     const found = findFileRecursive(tempDir, exeName);
     if (!found) {
       throw new Error(`${exeName} not found in zip`);
@@ -110,9 +221,7 @@ async function extractExeFromZip(zipPath: string, exeName: string, destDir: stri
     fs.copyFileSync(found, destPath);
     return destPath;
   } finally {
-    // 一時ディレクトリ削除
     fs.rmSync(tempDir, { recursive: true, force: true });
-    // zipも削除
     fs.rmSync(zipPath, { force: true });
   }
 }
@@ -159,7 +268,6 @@ export async function findBinary(name: BinaryName): Promise<string | null> {
     path.join(app.getPath('exe'), '..', exeName),
     path.join(app.getPath('home'), exeName),
   ];
-  // deno用: AppData\Local\deno
   if (name === 'deno' && process.platform === 'win32') {
     commonPaths.push(path.join(app.getPath('home'), 'AppData', 'Local', 'deno', 'deno.exe'));
     commonPaths.push(path.join(app.getPath('home'), '.deno', 'bin', 'deno.exe'));
@@ -189,7 +297,7 @@ export async function findBinary(name: BinaryName): Promise<string | null> {
 }
 
 /**
- * バイナリをダウンロードしてbinフォルダに配置
+ * バイナリをダウンロードしてbinフォルダに配置（SHA256検証付き）
  */
 async function downloadBinary(name: BinaryName): Promise<string> {
   fs.mkdirSync(BIN_DIR, { recursive: true });
@@ -197,16 +305,18 @@ async function downloadBinary(name: BinaryName): Promise<string> {
   const exeName = `${name}.exe`;
 
   if (name === 'yt-dlp') {
-    // 単体exe: 直接ダウンロード
+    // 単体exe: DL → 検証
     const destPath = path.join(BIN_DIR, exeName);
     await downloadFile(url, destPath, name);
+    await verifySha256(destPath, name);
     sendStatus({ binary: name, status: 'complete' });
     setSetting('ytdlpPath', destPath);
     return destPath;
   } else {
-    // zip: ダウンロード → 展開 → exe取り出し
+    // zip: DL → zip検証 → 展開
     const zipPath = path.join(BIN_DIR, `${name}.zip`);
     await downloadFile(url, zipPath, name);
+    await verifySha256(zipPath, name);
     sendStatus({ binary: name, status: 'extracting' });
     const exePath = await extractExeFromZip(zipPath, exeName, BIN_DIR);
     sendStatus({ binary: name, status: 'complete' });
@@ -216,51 +326,25 @@ async function downloadBinary(name: BinaryName): Promise<string> {
 }
 
 /**
- * 全バイナリを検索し、無ければ自動DL。
- * RendererにIPCで進捗通知する。
+ * 全バイナリを検索し、無ければ自動DL（SHA256検証付き）。
  */
 export async function ensureBinaries(): Promise<{ ytdlp: string | null; ffmpeg: string | null; deno: string | null }> {
   const result: { ytdlp: string | null; ffmpeg: string | null; deno: string | null } = {
     ytdlp: null, ffmpeg: null, deno: null,
   };
 
-  // yt-dlp
-  sendStatus({ binary: 'yt-dlp', status: 'searching' });
-  result.ytdlp = await findBinary('yt-dlp');
-  if (!result.ytdlp) {
-    try {
-      result.ytdlp = await downloadBinary('yt-dlp');
-    } catch (e: any) {
-      sendStatus({ binary: 'yt-dlp', status: 'error', error: e.message });
+  for (const [key, name] of [['ytdlp', 'yt-dlp'], ['ffmpeg', 'ffmpeg'], ['deno', 'deno']] as const) {
+    sendStatus({ binary: name as BinaryName, status: 'searching' });
+    result[key as keyof typeof result] = await findBinary(name as BinaryName);
+    if (!result[key as keyof typeof result]) {
+      try {
+        result[key as keyof typeof result] = await downloadBinary(name as BinaryName);
+      } catch (e: any) {
+        sendStatus({ binary: name as BinaryName, status: 'error', error: e.message });
+      }
+    } else {
+      sendStatus({ binary: name as BinaryName, status: 'complete' });
     }
-  } else {
-    sendStatus({ binary: 'yt-dlp', status: 'complete' });
-  }
-
-  // ffmpeg
-  sendStatus({ binary: 'ffmpeg', status: 'searching' });
-  result.ffmpeg = await findBinary('ffmpeg');
-  if (!result.ffmpeg) {
-    try {
-      result.ffmpeg = await downloadBinary('ffmpeg');
-    } catch (e: any) {
-      sendStatus({ binary: 'ffmpeg', status: 'error', error: e.message });
-    }
-  } else {
-    sendStatus({ binary: 'ffmpeg', status: 'complete' });
-  }
-
-  // deno
-  sendStatus({ binary: 'deno', status: 'searching' });
-  result.deno = await findBinary('deno');
-  if (!result.deno) {
-    try {
-      result.deno = await downloadBinary('deno');
-    } catch (e: any) {
-      sendStatus({ binary: 'deno', status: 'error', error: e.message });
-    }
-  } else {
-    sendStatus({ binary: 'deno', status: 'complete' });
   }
 
   return result;
