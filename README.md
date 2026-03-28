@@ -45,7 +45,7 @@ On first launch, Distill will automatically download the required tools (yt-dlp,
 
 ### Windows installer
 
-Coming soon.
+Download `ytdlp-distill-setup.exe` from the [Releases](https://github.com/shostako/ytdlp-distill/releases) page. Run the installer — it will automatically create desktop and Start Menu shortcuts.
 
 ## Usage
 
