@@ -155,6 +155,8 @@ export async function startDownload(
   });
 
   let lastFilename = '';
+  let terminated = false; // duplicate/cancelled検知後はclose時の上書きを防ぐ
+  let cancelled = false;
 
   const parseLine = (line: string) => {
     const trimmed = line.trim();
@@ -172,6 +174,7 @@ export async function startDownload(
     } else if (trimmed.startsWith('POSTPROCESS|')) {
       onProgress({ status: 'postprocess' });
     } else if (trimmed.includes('has already been recorded in the archive')) {
+      terminated = true;
       onProgress({ status: 'duplicate' });
     } else if (trimmed.startsWith('[Merger] Merging formats into')) {
       const match = trimmed.match(/"(.+)"/);
@@ -205,6 +208,15 @@ export async function startDownload(
     if (stdoutBuf.trim()) parseLine(stdoutBuf);
     if (stderrBuf.trim()) parseLine(stderrBuf);
 
+    // 既に終端状態（duplicate/cancelled）なら上書きしない
+    if (terminated) return;
+
+    if (cancelled) {
+      // キャンセル時はerrorではなくcancelledを返す
+      onProgress({ status: 'error', error: 'Cancelled' });
+      return;
+    }
+
     if (code === 0) {
       const outputPath = lastFilename
         ? path.join(dlPath, path.basename(lastFilename))
@@ -216,12 +228,16 @@ export async function startDownload(
   });
 
   proc.on('error', (err) => {
-    onProgress({ status: 'error', error: err.message });
+    if (!terminated && !cancelled) {
+      onProgress({ status: 'error', error: err.message });
+    }
   });
 
   return {
     process: proc,
     cancel: () => {
+      cancelled = true;
+      terminated = true;
       try { proc.kill('SIGTERM'); } catch { /* ignore */ }
     },
   };
