@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import '../../shared/types'; // Window global declaration
 
 interface SettingsStore {
   downloadPath: string;
@@ -10,25 +11,6 @@ interface SettingsStore {
   setHasBinaries: (has: boolean) => void;
   setIsLoading: (loading: boolean) => void;
   loadSettings: () => Promise<void>;
-}
-
-declare global {
-  interface Window {
-    electronAPI: {
-      checkBinaries: () => Promise<{ ytdlp: string | null; ffmpeg: string | null; deno: string | null }>;
-      fetchMetadata: (url: string) => Promise<any>;
-      startDownload: (url: string, resolution: string) => Promise<string>;
-      cancelDownload: (id: string) => Promise<boolean>;
-      getSettings: () => Promise<any>;
-      setSetting: (key: string, value: unknown) => Promise<boolean>;
-      selectFolder: () => Promise<string | null>;
-      openFolder: (path: string) => Promise<void>;
-      showInFolder: (path: string) => Promise<void>;
-      onDownloadProgress: (callback: (data: any) => void) => () => void;
-      onBinaryDownloadStatus: (callback: (data: any) => void) => () => void;
-      resizeWindow: (width: number, height: number) => Promise<void>;
-    };
-  }
 }
 
 export const useSettingsStore = create<SettingsStore>((set) => ({
@@ -45,7 +27,7 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
   loadSettings: async () => {
     try {
       const settings = await window.electronAPI.getSettings();
-      const bins = await window.electronAPI.checkBinaries();
+      const bins = await window.electronAPI.checkBinariesExist();
       set({
         downloadPath: settings.downloadPath || '',
         defaultResolution: settings.defaultResolution || '1080p',

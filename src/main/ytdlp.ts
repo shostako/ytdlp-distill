@@ -195,9 +195,11 @@ export async function startDownload(
   });
 
   let stderrBuf = '';
+  let stderrFull = ''; // エラー報告用に全内容を保持
   proc.stderr.on('data', (data: Buffer) => {
-    stderrBuf += data.toString();
-    // stderrも行単位でパース（一部の進捗情報がstderrに出る）
+    const chunk = data.toString();
+    stderrBuf += chunk;
+    stderrFull += chunk;
     const lines = stderrBuf.split('\n');
     stderrBuf = lines.pop() || '';
     lines.forEach(parseLine);
@@ -223,7 +225,12 @@ export async function startDownload(
         : '';
       onProgress({ status: 'complete', filename: outputPath });
     } else {
-      onProgress({ status: 'error', error: stderrBuf || `Exit code: ${code}` });
+      // stderrの最後の意味のある行をエラーメッセージとして使う
+      const errorLines = stderrFull.trim().split('\n').filter(l => l.trim() && !l.includes('WARNING'));
+      const errorMsg = errorLines.length > 0
+        ? errorLines[errorLines.length - 1].trim().slice(0, 200)
+        : `Exit code: ${code}`;
+      onProgress({ status: 'error', error: errorMsg });
     }
   });
 

@@ -1,22 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron';
-
-export interface ElectronAPI {
-  checkBinaries: () => Promise<{ ytdlp: string | null; ffmpeg: string | null; deno: string | null }>;
-  fetchMetadata: (url: string) => Promise<any>;
-  startDownload: (url: string, resolution: string) => Promise<string>;
-  cancelDownload: (id: string) => Promise<boolean>;
-  getSettings: () => Promise<any>;
-  setSetting: (key: string, value: unknown) => Promise<boolean>;
-  selectFolder: () => Promise<string | null>;
-  openFolder: (path: string) => Promise<void>;
-  showInFolder: (path: string) => Promise<void>;
-  onDownloadProgress: (callback: (data: any) => void) => () => void;
-  onBinaryDownloadStatus: (callback: (data: any) => void) => () => void;
-  resizeWindow: (width: number, height: number) => Promise<void>;
-}
+import type { ElectronAPI } from './shared/types';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   checkBinaries: () => ipcRenderer.invoke('check-binaries'),
+  checkBinariesExist: () => ipcRenderer.invoke('check-binaries-exist'),
   fetchMetadata: (url: string) => ipcRenderer.invoke('fetch-metadata', url),
   startDownload: (url: string, resolution: string) => ipcRenderer.invoke('start-download', url, resolution),
   cancelDownload: (id: string) => ipcRenderer.invoke('cancel-download', id),

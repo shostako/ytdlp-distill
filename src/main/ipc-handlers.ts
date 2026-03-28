@@ -1,6 +1,6 @@
 import { ipcMain, dialog, shell, BrowserWindow } from 'electron';
 import { fetchMetadata, startDownload, DownloadProgress } from './ytdlp';
-import { ensureBinaries } from './binary-manager';
+import { ensureBinaries, findBinary } from './binary-manager';
 import { getSetting, setSetting, getAllSettings } from './settings';
 import path from 'node:path';
 
@@ -17,9 +17,17 @@ function generateId(): string {
 }
 
 export function registerIpcHandlers(): void {
-  // バイナリ確認
+  // バイナリ確認（検索+DL）
   ipcMain.handle('check-binaries', async () => {
     return ensureBinaries();
+  });
+
+  // バイナリ検索のみ（DLしない、初期ロード用）
+  ipcMain.handle('check-binaries-exist', async () => {
+    const ytdlp = await findBinary('yt-dlp');
+    const ffmpeg = await findBinary('ffmpeg');
+    const deno = await findBinary('deno');
+    return { ytdlp, ffmpeg, deno };
   });
 
   // メタデータ取得
@@ -29,8 +37,13 @@ export function registerIpcHandlers(): void {
     return fetchMetadata(ytdlp, url);
   });
 
-  // ダウンロード開始
+  // ダウンロード開始（同時DL数制限付き）
   ipcMain.handle('start-download', async (event, url: string, resolution: string) => {
+    const maxConcurrent = getSetting('maxConcurrentDownloads') || 2;
+    if (activeDownloads.size >= maxConcurrent) {
+      throw new Error(`Maximum concurrent downloads (${maxConcurrent}) reached. Wait for one to finish.`);
+    }
+
     const { ytdlp } = await ensureBinaries();
     if (!ytdlp) throw new Error('yt-dlp not found');
 
@@ -97,7 +110,8 @@ export function registerIpcHandlers(): void {
     if (!folderPath || !path.resolve(folderPath).startsWith(path.resolve(dlPath))) {
       throw new Error('Access denied: path outside download directory');
     }
-    shell.openPath(folderPath);
+    const error = await shell.openPath(folderPath);
+    if (error) throw new Error(`Failed to open folder: ${error}`);
   });
 
   // ファイルのフォルダを開く（ダウンロードパス配下のみ許可）
