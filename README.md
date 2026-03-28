@@ -2,7 +2,9 @@
 
 A desktop YouTube downloader that produces universally playable MP4 files. Built on [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 
-![Screenshot](docs/screenshot.png)
+| Metadata | Downloading | Complete |
+|----------|-------------|----------|
+| ![Metadata](docs/screenshot-metadata.png) | ![Downloading](docs/screenshot-downloading.png) | ![Complete](docs/screenshot-complete.png) |
 
 ## Why Distill?
 

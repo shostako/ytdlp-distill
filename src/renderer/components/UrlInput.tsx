@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 
-const YOUTUBE_URL_RE = /https?:\/\/(www\.)?(youtube\.com\/(watch|shorts)|youtu\.be|music\.youtube\.com)\//;
+const YOUTUBE_URL_RE = /https?:\/\/(www\.)?(youtube\.com\/(watch|shorts)|youtu\.be|music\.youtube\.com)[/?]/;
 
 interface UrlInputProps {
   onUrlDetected: (url: string) => void;
@@ -71,11 +71,11 @@ export default function UrlInput({ onUrlDetected, isFetching, disabled }: UrlInp
           onPaste={handlePaste}
           placeholder="Paste a YouTube URL"
           disabled={disabled}
-          className="w-full bg-[#1c1c2e] border border-[#2a2a3e] rounded-lg px-4 py-2.5 pr-10 text-sm text-[#f5f5f7] placeholder-[#555568] focus:outline-none focus:ring-2 focus:ring-[#ff3b30]/50 focus:border-[#ff3b30]/50 transition-all duration-200 disabled:opacity-50"
+          className="w-full bg-[#1c1c2e] border border-[#2a2a3e] rounded-lg px-4 py-2.5 pr-10 text-sm text-[#f5f5f7] placeholder-[#555568] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/50 focus:border-[#2563eb]/50 transition-all duration-200 disabled:opacity-50"
         />
         {isFetching && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
-            <div className="w-4 h-4 border-2 border-[#ff3b30]/30 border-t-[#ff3b30] rounded-full spinner" />
+            <div className="w-4 h-4 border-2 border-[#2563eb]/30 border-t-[#2563eb] rounded-full spinner" />
           </div>
         )}
       </div>
