@@ -55,6 +55,10 @@ Coming soon.
 4. Click **Download**
 5. The file is saved to your Downloads/YouTube folder (configurable in settings)
 
+Click the **gear icon** (top right) to change the default download location and resolution.
+
+![Settings](docs/screenshot-settings.png)
+
 ## Resolution options
 
 | Option | Description |
