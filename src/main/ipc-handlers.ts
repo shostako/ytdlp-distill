@@ -3,6 +3,7 @@ import { fetchMetadata, startDownload, DownloadProgress } from './ytdlp';
 import { ensureBinaries, findBinary } from './binary-manager';
 import { getSetting, setSetting, getAllSettings } from './settings';
 import path from 'node:path';
+import fs from 'node:fs';
 
 interface ActiveDownload {
   id: string;
@@ -121,11 +122,21 @@ export function registerIpcHandlers(): void {
     return null;
   });
 
-  // パス検証ヘルパー（prefix attack防止: path.sep付きで比較）
+  // パス検証ヘルパー（prefix attack + symlink traversal防止）
   const isInsideDownloadDir = (targetPath: string): boolean => {
-    const dlPath = path.resolve(getSetting('downloadPath')) + path.sep;
-    const resolved = path.resolve(targetPath);
-    return resolved === dlPath.slice(0, -1) || resolved.startsWith(dlPath);
+    try {
+      const dlPath = fs.realpathSync(getSetting('downloadPath')) + path.sep;
+      // targetPathが存在しない場合はresolveだけで比較（DL完了前のパス等）
+      let resolved: string;
+      try {
+        resolved = fs.realpathSync(targetPath);
+      } catch {
+        resolved = path.resolve(targetPath);
+      }
+      return resolved === dlPath.slice(0, -1) || resolved.startsWith(dlPath);
+    } catch {
+      return false;
+    }
   };
 
   // フォルダを開く（ダウンロードパス配下のみ許可）
