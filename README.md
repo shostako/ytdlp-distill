@@ -57,7 +57,7 @@ Coming soon.
 
 Click the **gear icon** (top right) to change the default download location and resolution.
 
-![Settings](docs/screenshot-settings.png)
+<img src="docs/screenshot-settings.png" width="280" />
 
 ## Resolution options
 
