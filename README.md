@@ -55,6 +55,21 @@ Coming soon.
 4. Click **Download**
 5. The file is saved to your Downloads/YouTube folder (configurable in settings)
 
+## Resolution options
+
+| Option | Description |
+|--------|-------------|
+| **360p** | Low quality, smallest file size. Good for audio-focused content |
+| **480p** | Standard definition |
+| **720p** | HD. Good balance of quality and size |
+| **1080p** | Full HD (default). Recommended for most use cases |
+| **1440p** | 2K. Noticeably sharper than 1080p |
+| **4K** | 2160p. Maximum visual quality, large files |
+| **Best** | Highest available quality with no resolution cap |
+| **MP3** | Audio only. Extracts audio and converts to MP3 |
+
+All video options output MP4 with H.264 video and AAC audio for maximum device compatibility.
+
 ## How it works
 
 Distill wraps [yt-dlp](https://github.com/yt-dlp/yt-dlp) with a format selection that prioritizes compatibility:
