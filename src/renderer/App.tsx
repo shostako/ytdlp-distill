@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSettingsStore } from './stores/settings-store';
 import { useDownloadStore } from './stores/download-store';
 import UrlInput from './components/UrlInput';
@@ -53,10 +53,12 @@ export default function App() {
     return unsubscribe;
   }, [updateDownload]);
 
+  // リクエスト順序管理（古いリクエストの結果を破棄するため）
+  const fetchIdRef = useRef(0);
+
   // Fetch metadata when a valid YouTube URL is detected
   const handleUrlDetected = useCallback(async (url: string) => {
-    // Skip if already fetching the same URL
-    if (isFetching) return;
+    const thisId = ++fetchIdRef.current;
 
     setIsFetching(true);
     setFetchError(null);
@@ -64,16 +66,20 @@ export default function App() {
 
     try {
       const meta = await window.electronAPI.fetchMetadata(url);
+      // 古いリクエストの結果なら破棄
+      if (thisId !== fetchIdRef.current) return;
       setMetadata(meta);
-      // メタデータ表示分ウィンドウを拡げる
       window.electronAPI.resizeWindow(420, 360);
     } catch (err: any) {
+      if (thisId !== fetchIdRef.current) return;
       setFetchError(err.message || 'Failed to fetch video info');
       console.error('Metadata fetch error:', err);
     } finally {
-      setIsFetching(false);
+      if (thisId === fetchIdRef.current) {
+        setIsFetching(false);
+      }
     }
-  }, [isFetching]);
+  }, []);
 
   // Start download
   const handleDownload = useCallback(async () => {
