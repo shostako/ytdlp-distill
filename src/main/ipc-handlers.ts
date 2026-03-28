@@ -2,6 +2,7 @@ import { ipcMain, dialog, shell, BrowserWindow } from 'electron';
 import { fetchMetadata, startDownload, DownloadProgress } from './ytdlp';
 import { ensureBinaries } from './binary-manager';
 import { getSetting, setSetting, getAllSettings } from './settings';
+import path from 'node:path';
 
 interface ActiveDownload {
   id: string;
@@ -67,8 +68,12 @@ export function registerIpcHandlers(): void {
     return getAllSettings();
   });
 
-  // 設定更新
+  // 設定更新（許可されたキーのみ）
+  const ALLOWED_KEYS = ['downloadPath', 'defaultResolution', 'ytdlpPath', 'ffmpegPath', 'maxConcurrentDownloads'] as const;
   ipcMain.handle('set-setting', async (_event, key: string, value: unknown) => {
+    if (!ALLOWED_KEYS.includes(key as any)) {
+      throw new Error(`Invalid setting key: ${key}`);
+    }
     setSetting(key as any, value as any);
     return true;
   });
@@ -86,13 +91,21 @@ export function registerIpcHandlers(): void {
     return null;
   });
 
-  // フォルダを開く
+  // フォルダを開く（ダウンロードパス配下のみ許可）
   ipcMain.handle('open-folder', async (_event, folderPath: string) => {
+    const dlPath = getSetting('downloadPath');
+    if (!folderPath || !path.resolve(folderPath).startsWith(path.resolve(dlPath))) {
+      throw new Error('Access denied: path outside download directory');
+    }
     shell.openPath(folderPath);
   });
 
-  // ファイルのフォルダを開く
+  // ファイルのフォルダを開く（ダウンロードパス配下のみ許可）
   ipcMain.handle('show-in-folder', async (_event, filePath: string) => {
+    const dlPath = getSetting('downloadPath');
+    if (!filePath || !path.resolve(filePath).startsWith(path.resolve(dlPath))) {
+      throw new Error('Access denied: path outside download directory');
+    }
     shell.showItemInFolder(filePath);
   });
 
