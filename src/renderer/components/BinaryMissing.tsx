@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSettingsStore } from '../stores/settings-store';
+import { useT } from '../i18n';
 
 interface BinaryStatus {
   binary: string;
@@ -14,6 +15,7 @@ export default function BinaryMissing() {
   const [setupDone, setSetupDone] = useState(false);
   const [hasError, setHasError] = useState(false);
   const { setHasBinaries } = useSettingsStore();
+  const { t, te } = useT();
 
   // Listen for binary download status
   useEffect(() => {
@@ -55,15 +57,15 @@ export default function BinaryMissing() {
 
   const getStatusText = (name: string): string => {
     const s = statuses[name];
-    if (!s) return 'Waiting...';
+    if (!s) return t('setup.waiting');
     switch (s.status) {
-      case 'searching': return 'Searching...';
-      case 'downloading': return s.percent ? `Downloading ${s.percent}%` : 'Downloading...';
-      case 'verifying': return 'Verifying SHA256...';
-      case 'extracting': return 'Extracting...';
-      case 'complete': return 'Verified & Ready';
-      case 'error': return `Error: ${s.error || 'Unknown'}`;
-      default: return 'Waiting...';
+      case 'searching': return t('setup.searching');
+      case 'downloading': return s.percent ? t('setup.downloading', { percent: s.percent }) : t('setup.downloadingNoPct');
+      case 'verifying': return t('setup.verifying');
+      case 'extracting': return t('setup.extracting');
+      case 'complete': return t('setup.ready');
+      case 'error': return t('setup.error', { error: s.error ? te(s.error) : t('setup.unknown') });
+      default: return t('setup.waiting');
     }
   };
 
@@ -102,15 +104,15 @@ export default function BinaryMissing() {
         </div>
 
         <h2 className="text-lg font-semibold text-[#f5f5f7] mb-2">
-          {setupDone ? 'Setup Complete' : isSetup ? 'Setting Up...' : 'First-Time Setup'}
+          {setupDone ? t('setup.titleDone') : isSetup ? t('setup.titleBusy') : t('setup.titleFirst')}
         </h2>
 
         <p className="text-sm text-[#8e8e93] mb-5">
           {setupDone
-            ? 'All tools are ready. Starting the app...'
+            ? t('setup.descDone')
             : isSetup
-              ? 'Downloading required tools. This only happens once.'
-              : 'This app needs to download a few tools to work. This only takes a minute.'}
+              ? t('setup.descBusy')
+              : t('setup.descFirst')}
         </p>
 
         {/* Progress display during setup */}
@@ -141,7 +143,7 @@ export default function BinaryMissing() {
         {/* Error retry */}
         {hasError && !setupDone && (
           <p className="text-xs text-[#ff453a] mb-3">
-            Some downloads failed. Check your internet connection and try again.
+            {t('setup.failed')}
           </p>
         )}
 
@@ -155,12 +157,12 @@ export default function BinaryMissing() {
             {isSetup && !hasError ? (
               <>
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full spinner" />
-                Setting up...
+                {t('setup.settingUp')}
               </>
             ) : hasError ? (
-              'Retry'
+              t('setup.retry')
             ) : (
-              'Set Up Now'
+              t('setup.start')
             )}
           </button>
         )}

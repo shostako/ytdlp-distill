@@ -1,5 +1,7 @@
 import React from 'react';
 import { useDownloadStore, DownloadItem, DownloadStatus } from '../stores/download-store';
+import { useT } from '../i18n';
+import type { MsgKey } from '../../shared/i18n';
 
 /** Status color mapping */
 function statusColor(status: DownloadStatus): string {
@@ -21,29 +23,20 @@ function statusColor(status: DownloadStatus): string {
   }
 }
 
-/** Human-readable status label */
-function statusLabel(status: DownloadStatus): string {
-  switch (status) {
-    case 'downloading':
-      return 'Downloading';
-    case 'postprocess':
-      return 'Processing';
-    case 'complete':
-      return 'Complete';
-    case 'error':
-      return 'Error';
-    case 'duplicate':
-      return 'Already downloaded';
-    case 'cancelled':
-      return 'Cancelled';
-    case 'pending':
-      return 'Pending';
-    case 'fetching':
-      return 'Fetching...';
-    default:
-      return status;
-  }
-}
+/** ステータス → 辞書キー */
+const STATUS_KEY: Record<DownloadStatus, MsgKey> = {
+  downloading: 'status.downloading',
+  postprocess: 'status.postprocess',
+  complete: 'status.complete',
+  error: 'status.error',
+  duplicate: 'status.duplicate',
+  cancelled: 'status.cancelled',
+  pending: 'status.pending',
+  fetching: 'status.fetching',
+};
+
+/** 403 = yt-dlp が古い典型。エラー文に更新ヒントを添える */
+const HTTP_403_RE = /HTTP Error 403/i;
 
 function isFinished(status: DownloadStatus): boolean {
   return ['complete', 'error', 'duplicate', 'cancelled'].includes(status);
@@ -51,7 +44,11 @@ function isFinished(status: DownloadStatus): boolean {
 
 function DownloadItemRow({ item }: { item: DownloadItem }) {
   const { updateDownload } = useDownloadStore();
+  const { t, te } = useT();
   const color = statusColor(item.status);
+  const errorText = item.error
+    ? (HTTP_403_RE.test(item.error) ? `${te(item.error)} — ${t('dl.hint403')}` : te(item.error))
+    : '';
   const finished = isFinished(item.status);
   const percentNum = item.percent ? parseFloat(item.percent.replace('%', '')) : 0;
 
@@ -75,12 +72,12 @@ function DownloadItemRow({ item }: { item: DownloadItem }) {
       {/* Title + action row */}
       <div className="flex items-center justify-between gap-2 mb-2">
         <span className="text-sm text-[#f5f5f7] truncate flex-1" title={item.title}>
-          {item.title || 'Untitled'}
+          {item.title || t('dl.untitled')}
         </span>
         {!finished && (
           <button
             onClick={handleCancel}
-            title="Cancel download"
+            title={t('dl.cancel')}
             className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded text-[#8e8e93] hover:text-[#ef4444] hover:bg-[#ef4444]/10 transition-all duration-200"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -92,7 +89,7 @@ function DownloadItemRow({ item }: { item: DownloadItem }) {
         {item.status === 'complete' && item.filename && (
           <button
             onClick={handleShowInFolder}
-            title="Show in folder"
+            title={t('dl.showInFolder')}
             className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded text-[#8e8e93] hover:text-[#22c55e] hover:bg-[#22c55e]/10 transition-all duration-200"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -121,7 +118,7 @@ function DownloadItemRow({ item }: { item: DownloadItem }) {
       {/* Status + details row */}
       <div className="flex items-center justify-between text-xs">
         <span style={{ color }}>
-          {statusLabel(item.status)}
+          {t(STATUS_KEY[item.status])}
           {item.status === 'downloading' && item.percent && (
             <span className="ml-1 text-[#8e8e93]">{item.percent}</span>
           )}
@@ -131,13 +128,13 @@ function DownloadItemRow({ item }: { item: DownloadItem }) {
             <>
               {item.speed && <span>{item.speed}</span>}
               {item.eta && item.eta !== 'Unknown' && (
-                <span className="ml-2">ETA {item.eta}</span>
+                <span className="ml-2">{t('dl.eta', { eta: item.eta })}</span>
               )}
             </>
           )}
           {item.status === 'error' && item.error && (
-            <span className="text-[#ef4444]/70 truncate max-w-[200px]" title={item.error}>
-              {item.error.slice(0, 50)}
+            <span className="text-[#ef4444]/70 truncate max-w-[200px]" title={errorText}>
+              {errorText.slice(0, 50)}
             </span>
           )}
         </span>
@@ -148,6 +145,7 @@ function DownloadItemRow({ item }: { item: DownloadItem }) {
 
 export default function DownloadList() {
   const { downloads, clearCompleted } = useDownloadStore();
+  const { t } = useT();
 
   if (downloads.length === 0) {
     return null;
@@ -160,14 +158,14 @@ export default function DownloadList() {
       {/* Header row */}
       <div className="flex items-center justify-between">
         <h2 className="text-xs font-medium text-[#8e8e93] uppercase tracking-wider">
-          Downloads
+          {t('dl.header')}
         </h2>
         {hasFinished && (
           <button
             onClick={clearCompleted}
             className="text-xs text-[#8e8e93] hover:text-[#f5f5f7] transition-colors duration-200"
           >
-            Clear completed
+            {t('dl.clearCompleted')}
           </button>
         )}
       </div>

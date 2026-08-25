@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { useT } from '../i18n';
 
 const YOUTUBE_URL_RE = /https?:\/\/(www\.)?(youtube\.com\/(watch|shorts)|youtu\.be|music\.youtube\.com)[/?]/;
 
@@ -9,6 +10,7 @@ interface UrlInputProps {
 }
 
 export default function UrlInput({ onUrlDetected, isFetching, disabled }: UrlInputProps) {
+  const { t } = useT();
   const [value, setValue] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -69,7 +71,7 @@ export default function UrlInput({ onUrlDetected, isFetching, disabled }: UrlInp
           value={value}
           onChange={handleChange}
           onPaste={handlePaste}
-          placeholder="Paste a YouTube URL"
+          placeholder={t('url.placeholder')}
           disabled={disabled}
           className="w-full bg-[#1c1c2e] border border-[#2a2a3e] rounded-lg px-4 py-2.5 pr-10 text-sm text-[#f5f5f7] placeholder-[#555568] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/50 focus:border-[#2563eb]/50 transition-all duration-200 disabled:opacity-50"
         />
@@ -83,7 +85,7 @@ export default function UrlInput({ onUrlDetected, isFetching, disabled }: UrlInp
       <button
         onClick={handleClipboardButton}
         disabled={disabled || isFetching}
-        title="Paste from clipboard"
+        title={t('url.pasteButton')}
         className="flex-shrink-0 p-2.5 bg-[#1c1c2e] border border-[#2a2a3e] rounded-lg text-[#8e8e93] hover:text-[#f5f5f7] hover:border-[#3a3a4e] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {/* Clipboard icon (SVG) */}

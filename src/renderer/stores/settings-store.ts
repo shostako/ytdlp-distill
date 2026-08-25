@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { YtdlpUpdateInfo } from '../../shared/types';
+import { resolveLocale, type Language, type Locale } from '../../shared/i18n';
 
 /** 'unknown' = 最新版が取得できず比較していない（up-to-date と混同しない） */
 export type YtdlpUpdateState = 'idle' | 'checking' | 'updating' | 'updated' | 'up-to-date' | 'outdated' | 'unknown' | 'error';
@@ -15,7 +16,12 @@ interface SettingsStore {
   defaultResolution: string;
   hasBinaries: boolean;
   isLoading: boolean;
+  language: Language;
+  systemLocale: string;
+  /** language と systemLocale から導出した実際の表示言語 */
+  locale: Locale;
   ytdlpUpdate: YtdlpUpdateStatus;
+  setLanguage: (language: Language) => void;
   setDownloadPath: (path: string) => void;
   setDefaultResolution: (res: string) => void;
   setHasBinaries: (has: boolean) => void;
@@ -25,6 +31,12 @@ interface SettingsStore {
   checkYtdlpUpdate: () => Promise<void>;
   /** 古ければ更新する。auto=true は起動時の無人実行（失敗しても静かに記録するだけ） */
   updateYtdlp: (auto?: boolean) => Promise<void>;
+}
+
+/** <html lang> を同期する（日本語フォントのフォールバックは lang で切り替える） */
+function applyLocale(locale: Locale): Locale {
+  if (typeof document !== 'undefined') document.documentElement.lang = locale;
+  return locale;
 }
 
 const IDLE_UPDATE: YtdlpUpdateStatus = { state: 'idle', current: null, latest: null, outdated: false };
@@ -40,7 +52,12 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   defaultResolution: '1080p',
   hasBinaries: false,
   isLoading: true,
+  language: 'system',
+  systemLocale: '',
+  locale: 'en',
   ytdlpUpdate: IDLE_UPDATE,
+
+  setLanguage: (language) => set((s) => ({ language, locale: applyLocale(resolveLocale(language, s.systemLocale)) })),
 
   setDownloadPath: (path) => set({ downloadPath: path }),
   setDefaultResolution: (res) => set({ defaultResolution: res }),
@@ -51,11 +68,16 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   loadSettings: async () => {
     try {
       const settings = await window.electronAPI.getSettings();
+      const systemLocale = await window.electronAPI.getSystemLocale().catch(() => '');
       const bins = await window.electronAPI.checkBinariesExist();
+      const language: Language = settings.language || 'system';
       set({
         downloadPath: settings.downloadPath || '',
         defaultResolution: settings.defaultResolution || '1080p',
         hasBinaries: !!(bins.ytdlp && bins.ffmpeg),
+        language,
+        systemLocale,
+        locale: applyLocale(resolveLocale(language, systemLocale)),
         isLoading: false,
       });
     } catch (err) {

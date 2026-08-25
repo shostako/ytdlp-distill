@@ -1,6 +1,7 @@
 import Store from 'electron-store';
 import { app } from 'electron';
 import path from 'node:path';
+import type { Language } from '../shared/i18n';
 
 export interface AppSettings {
   downloadPath: string;
@@ -8,6 +9,7 @@ export interface AppSettings {
   ytdlpPath: string;
   ffmpegPath: string;
   maxConcurrentDownloads: number;
+  language: Language;
   windowBounds?: { x: number; y: number; width: number; height: number };
 }
 
@@ -21,6 +23,7 @@ function getStore(): Store<AppSettings> {
       ytdlpPath: '',
       ffmpegPath: '',
       maxConcurrentDownloads: 2,
+      language: 'system',
     };
     store = new Store<AppSettings>({ defaults });
   }

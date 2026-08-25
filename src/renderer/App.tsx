@@ -7,6 +7,7 @@ import ResolutionPicker from './components/ResolutionPicker';
 import DownloadList from './components/DownloadList';
 import SettingsPanel from './components/SettingsPanel';
 import BinaryMissing from './components/BinaryMissing';
+import { useT } from './i18n';
 
 export default function App() {
   const {
@@ -22,6 +23,7 @@ export default function App() {
   } = useSettingsStore();
 
   const { addDownload, updateDownload } = useDownloadStore();
+  const { t, te } = useT();
 
   const [metadata, setMetadata] = useState<VideoMetadata | null>(null);
   const [isFetching, setIsFetching] = useState(false);
@@ -107,7 +109,7 @@ export default function App() {
       window.electronAPI.resizeWindow(420, 360);
     } catch (err: any) {
       if (thisId !== fetchIdRef.current) return;
-      setFetchError(err.message || 'Failed to fetch video info');
+      setFetchError(err?.message ? te(err.message) : t('app.fetchFailed'));
       console.error('Metadata fetch error:', err);
     } finally {
       if (thisId === fetchIdRef.current) {
@@ -141,6 +143,8 @@ export default function App() {
       window.electronAPI.resizeWindow(420, 500);
     } catch (err: any) {
       console.error('Download start error:', err);
+      // 同時DL上限などの main 側エラーをユーザーに見せる（従来は console のみ）
+      setFetchError(te(err?.message) || String(err));
     } finally {
       setIsDownloading(false);
     }
@@ -169,7 +173,7 @@ export default function App() {
         </h1>
         <button
           onClick={() => setSettingsOpen(true)}
-          title="Settings"
+          title={t('app.settings')}
           className="w-7 h-7 flex items-center justify-center rounded-lg text-[#8e8e93] hover:text-[#f5f5f7] hover:bg-[#1c1c2e] transition-all duration-200"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -184,34 +188,34 @@ export default function App() {
         <div className="text-xs text-[#4a9eff] bg-[#4a9eff]/10 border border-[#4a9eff]/20 rounded-lg px-3 py-2 animate-fade-in flex items-center gap-2">
           <div className="w-3 h-3 border-2 border-[#4a9eff]/30 border-t-[#4a9eff] rounded-full spinner flex-shrink-0" />
           <span className="truncate">
-            Updating yt-dlp {ytdlpUpdate.current ?? '?'} → {ytdlpUpdate.latest ?? 'latest'}
+            {t('banner.updating', { from: ytdlpUpdate.current ?? '?', to: ytdlpUpdate.latest ?? 'latest' })}
             {typeof ytdlpUpdate.percent === 'number' ? ` (${ytdlpUpdate.percent}%)` : ''}
           </span>
         </div>
       )}
       {ytdlpUpdate.state === 'updated' && (
         <div className="text-xs text-[#30d158] bg-[#30d158]/10 border border-[#30d158]/20 rounded-lg px-3 py-2 animate-fade-in">
-          yt-dlp updated to {ytdlpUpdate.current}
+          {t('banner.updated', { version: ytdlpUpdate.current })}
         </div>
       )}
       {ytdlpUpdate.state === 'outdated' && (
         <div className="text-xs text-[#eab308] bg-[#eab308]/10 border border-[#eab308]/20 rounded-lg px-3 py-2 animate-fade-in flex items-center justify-between gap-2">
-          <span className="truncate">yt-dlp {ytdlpUpdate.latest} available (installed: {ytdlpUpdate.current ?? 'unknown'})</span>
+          <span className="truncate">{t('banner.outdated', { latest: ytdlpUpdate.latest, current: ytdlpUpdate.current ?? t('ytdlp.unknownVersion') })}</span>
           <button
             onClick={() => updateYtdlp()}
             className="flex-shrink-0 px-2 py-0.5 rounded bg-[#eab308]/20 hover:bg-[#eab308]/30 text-[#eab308] transition-colors duration-200"
           >
-            Update
+            {t('banner.update')}
           </button>
         </div>
       )}
       {ytdlpUpdate.state === 'error' && (
         <div className="text-xs text-[#ef4444] bg-[#ef4444]/10 border border-[#ef4444]/20 rounded-lg px-3 py-2 animate-fade-in flex items-center justify-between gap-2">
-          <span className="truncate" title={ytdlpUpdate.error}>yt-dlp update failed: {ytdlpUpdate.error}</span>
+          <span className="truncate" title={te(ytdlpUpdate.error)}>{t('banner.updateFailed', { error: te(ytdlpUpdate.error) })}</span>
           <button
             onClick={() => setYtdlpUpdate({ state: 'idle', error: undefined })}
             className="flex-shrink-0 text-[#ef4444]/70 hover:text-[#ef4444]"
-            title="Dismiss"
+            title={t('banner.dismiss')}
           >
             ×
           </button>
@@ -248,11 +252,11 @@ export default function App() {
           <div
             className="flex-1 min-w-0 bg-[#1c1c2e] border border-[#2a2a3e] rounded-lg px-3 py-2 text-xs text-[#555568] truncate cursor-pointer hover:border-[#3a3a4e] transition-colors duration-200"
             onClick={() => downloadPath && window.electronAPI.openFolder(downloadPath)}
-            title={downloadPath || 'Not set'}
+            title={downloadPath || t('settings.notSet')}
           >
             {downloadPath
               ? downloadPath.split(/[/\\]/).slice(-2).join('/')
-              : 'No save location'}
+              : t('app.noSaveLocation')}
           </div>
 
           {/* Download button */}
@@ -270,7 +274,7 @@ export default function App() {
                 <line x1="12" y1="15" x2="12" y2="3" />
               </svg>
             )}
-            Download
+            {t('app.download')}
           </button>
         </div>
       )}

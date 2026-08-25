@@ -1,3 +1,7 @@
+import type { Language } from './i18n';
+
+export type { Language } from './i18n';
+
 /** IPC経由のビデオメタデータ */
 export interface VideoMetadata {
   id: string;
@@ -54,6 +58,7 @@ export interface AppSettings {
   ytdlpPath: string;
   ffmpegPath: string;
   maxConcurrentDownloads: number;
+  language: Language;
   windowBounds?: { x: number; y: number; width: number; height: number };
 }
 
@@ -67,6 +72,7 @@ export interface ElectronAPI {
   startDownload: (url: string, resolution: string) => Promise<string>;
   cancelDownload: (id: string) => Promise<boolean>;
   getSettings: () => Promise<AppSettings>;
+  getSystemLocale: () => Promise<string>;
   setSetting: (key: string, value: unknown) => Promise<boolean>;
   selectFolder: () => Promise<string | null>;
   openFolder: (path: string) => Promise<void>;

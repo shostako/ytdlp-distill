@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 日本語表示時のフォント。Tailwind の既定スタックだと Windows で日本語が MS ゴシック系に落ちることがある */
+html[lang='ja'] body {
+  font-family: 'Segoe UI', 'Yu Gothic UI', 'Meiryo', 'Hiragino Sans', 'Noto Sans JP', system-ui, sans-serif;
+}
+
 /* Progress bar shimmer animation */
 @keyframes shimmer {
   0% {

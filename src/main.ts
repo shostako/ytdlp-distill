@@ -3,6 +3,7 @@ import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { registerIpcHandlers } from './main/ipc-handlers';
 import { getSetting, setSetting } from './main/settings';
+import { resolveLocale, translate } from './shared/i18n';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -54,14 +55,16 @@ const createWindow = () => {
   // 右クリックコンテキストメニュー
   mainWindow.webContents.on('context-menu', (_event, params) => {
     const menu = new Menu();
+    const locale = resolveLocale(getSetting('language'), app.getLocale());
+    const t = (key: 'menu.cut' | 'menu.copy' | 'menu.paste' | 'menu.selectAll') => translate(locale, key);
 
     if (params.isEditable) {
-      menu.append(new MenuItem({ label: 'Cut', role: 'cut' }));
-      menu.append(new MenuItem({ label: 'Copy', role: 'copy' }));
-      menu.append(new MenuItem({ label: 'Paste', role: 'paste' }));
-      menu.append(new MenuItem({ label: 'Select All', role: 'selectAll' }));
+      menu.append(new MenuItem({ label: t('menu.cut'), role: 'cut' }));
+      menu.append(new MenuItem({ label: t('menu.copy'), role: 'copy' }));
+      menu.append(new MenuItem({ label: t('menu.paste'), role: 'paste' }));
+      menu.append(new MenuItem({ label: t('menu.selectAll'), role: 'selectAll' }));
     } else if (params.selectionText) {
-      menu.append(new MenuItem({ label: 'Copy', role: 'copy' }));
+      menu.append(new MenuItem({ label: t('menu.copy'), role: 'copy' }));
     }
 
     if (menu.items.length > 0) {

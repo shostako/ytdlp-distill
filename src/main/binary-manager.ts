@@ -9,6 +9,7 @@ import { promisify } from 'node:util';
 import { createWriteStream } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { getSetting, setSetting } from './settings';
+import { errorCode } from '../shared/i18n';
 
 const execFileAsync = promisify(execFile);
 
@@ -218,9 +219,8 @@ async function verifySha256(filePath: string, name: BinaryName): Promise<void> {
   if (actual !== expected) {
     // 不一致: ファイル削除して例外
     fs.rmSync(filePath, { force: true });
-    throw new Error(
-      `SHA256 mismatch for ${name}! Expected: ${expected.slice(0, 16)}... Got: ${actual.slice(0, 16)}... File deleted.`
-    );
+    console.error(`SHA256 mismatch for ${name}! Expected: ${expected.slice(0, 16)}... Got: ${actual.slice(0, 16)}...`);
+    throw new Error(errorCode('E_SHA256_MISMATCH', name));
   }
 
   console.log(`SHA256 verified for ${name}: ${actual.slice(0, 16)}...`);
@@ -343,7 +343,7 @@ async function downloadBinary(name: BinaryName): Promise<string> {
         fs.renameSync(tmpPath, destPath);
       } catch (e: any) {
         if (e?.code === 'EPERM' || e?.code === 'EBUSY' || e?.code === 'EACCES') {
-          throw new Error('yt-dlp.exe is in use. Wait for downloads to finish and try again.');
+          throw new Error(errorCode('E_YTDLP_IN_USE'));
         }
         throw e;
       }
@@ -487,7 +487,7 @@ export function updateYtdlp(): Promise<YtdlpUpdateResult> {
     const newPath = await downloadBinary('yt-dlp');
     const current = await getYtdlpVersion(newPath);
     if (current === null) {
-      throw new Error('Downloaded yt-dlp does not run. Check antivirus or try again.');
+      throw new Error(errorCode('E_YTDLP_BROKEN'));
     }
     return { current, latest: info.latest, outdated: false, updated: true };
   })().finally(() => {

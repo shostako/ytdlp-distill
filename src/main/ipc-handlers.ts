@@ -1,9 +1,10 @@
-import { ipcMain, dialog, shell, BrowserWindow } from 'electron';
+import { ipcMain, dialog, shell, BrowserWindow, app } from 'electron';
 import { fetchMetadata, startDownload, DownloadProgress } from './ytdlp';
 import { ensureBinaries, findBinary, checkYtdlpUpdate, updateYtdlp } from './binary-manager';
 import { getSetting, setSetting, getAllSettings } from './settings';
 import path from 'node:path';
 import fs from 'node:fs';
+import { errorCode, LANGUAGES } from '../shared/i18n';
 
 interface ActiveDownload {
   id: string;
@@ -39,7 +40,7 @@ export function registerIpcHandlers(): void {
   // yt-dlp更新（古ければ最新版をDLして差し替え）。DL中は実行exeを差し替えられないので拒否
   ipcMain.handle('update-ytdlp', async () => {
     if (activeDownloads.size > 0) {
-      throw new Error('Cannot update yt-dlp while downloads are running.');
+      throw new Error(errorCode('E_UPDATE_BUSY'));
     }
     return updateYtdlp();
   });
@@ -47,7 +48,7 @@ export function registerIpcHandlers(): void {
   // メタデータ取得
   ipcMain.handle('fetch-metadata', async (_event, url: string) => {
     const { ytdlp } = await ensureBinaries();
-    if (!ytdlp) throw new Error('yt-dlp not found');
+    if (!ytdlp) throw new Error(errorCode('E_YTDLP_NOT_FOUND'));
     return fetchMetadata(ytdlp, url);
   });
 
@@ -55,7 +56,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('start-download', async (event, url: string, resolution: string) => {
     const maxConcurrent = getSetting('maxConcurrentDownloads') || 2;
     if (activeDownloads.size >= maxConcurrent) {
-      throw new Error(`Maximum concurrent downloads (${maxConcurrent}) reached. Wait for one to finish.`);
+      throw new Error(errorCode('E_MAX_CONCURRENT', maxConcurrent));
     }
 
     // IDを先に予約してTOCTOU防止（同時リクエストが枠を超えない）
@@ -64,15 +65,11 @@ export function registerIpcHandlers(): void {
 
     try {
       const { ytdlp } = await ensureBinaries();
-      if (!ytdlp) throw new Error('yt-dlp not found');
+      if (!ytdlp) throw new Error(errorCode('E_YTDLP_NOT_FOUND'));
 
       const win = BrowserWindow.fromWebContents(event.sender);
 
       const { cancel } = await startDownload(ytdlp, url, resolution, (progress: DownloadProgress) => {
-        // 403はYouTube側の仕様変更でyt-dlpが古くなった典型。更新を促す
-        if (progress.status === 'error' && progress.error && /HTTP Error 403/i.test(progress.error)) {
-          progress = { ...progress, error: `${progress.error} — yt-dlp may be outdated. Update it from Settings.` };
-        }
         if (win && !win.isDestroyed()) {
           win.webContents.send('download-progress', { id, ...progress });
         }
@@ -106,6 +103,11 @@ export function registerIpcHandlers(): void {
     return getAllSettings();
   });
 
+  // OSロケール（language='system' のときの表示言語決定に使う）
+  ipcMain.handle('get-system-locale', async () => {
+    return app.getLocale();
+  });
+
   // 設定更新（許可されたキー + 型バリデーション）
   const SETTING_VALIDATORS: Record<string, (v: unknown) => boolean> = {
     downloadPath: (v) => typeof v === 'string' && v.length > 0,
@@ -113,6 +115,7 @@ export function registerIpcHandlers(): void {
     ytdlpPath: (v) => typeof v === 'string',
     ffmpegPath: (v) => typeof v === 'string',
     maxConcurrentDownloads: (v) => typeof v === 'number' && Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 10,
+    language: (v) => typeof v === 'string' && (LANGUAGES as string[]).includes(v),
   };
   ipcMain.handle('set-setting', async (_event, key: string, value: unknown) => {
     const validator = SETTING_VALIDATORS[key];
@@ -159,16 +162,19 @@ export function registerIpcHandlers(): void {
   // フォルダを開く（ダウンロードパス配下のみ許可）
   ipcMain.handle('open-folder', async (_event, folderPath: string) => {
     if (!folderPath || !isInsideDownloadDir(folderPath)) {
-      throw new Error('Access denied: path outside download directory');
+      throw new Error(errorCode('E_ACCESS_DENIED'));
     }
     const error = await shell.openPath(folderPath);
-    if (error) throw new Error(`Failed to open folder: ${error}`);
+    if (error) {
+      console.error('openPath failed:', error);
+      throw new Error(errorCode('E_OPEN_FOLDER'));
+    }
   });
 
   // ファイルのフォルダを開く（ダウンロードパス配下のみ許可）
   ipcMain.handle('show-in-folder', async (_event, filePath: string) => {
     if (!filePath || !isInsideDownloadDir(filePath)) {
-      throw new Error('Access denied: path outside download directory');
+      throw new Error(errorCode('E_ACCESS_DENIED'));
     }
     shell.showItemInFolder(filePath);
   });
