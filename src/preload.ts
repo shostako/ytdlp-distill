@@ -4,6 +4,8 @@ import type { ElectronAPI } from './shared/types';
 contextBridge.exposeInMainWorld('electronAPI', {
   checkBinaries: () => ipcRenderer.invoke('check-binaries'),
   checkBinariesExist: () => ipcRenderer.invoke('check-binaries-exist'),
+  checkYtdlpUpdate: () => ipcRenderer.invoke('check-ytdlp-update'),
+  updateYtdlp: () => ipcRenderer.invoke('update-ytdlp'),
   fetchMetadata: (url: string) => ipcRenderer.invoke('fetch-metadata', url),
   startDownload: (url: string, resolution: string) => ipcRenderer.invoke('start-download', url, resolution),
   cancelDownload: (id: string) => ipcRenderer.invoke('cancel-download', id),

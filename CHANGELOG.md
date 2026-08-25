@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.1.0] - 2026-08-26
+
+### Added
+- yt-dlp auto-update: on startup the bundled yt-dlp is compared against the latest GitHub release and replaced when outdated (SHA256 verified, atomic rename so a failed download never leaves a broken exe)
+- Settings panel shows the installed yt-dlp version with a Check / Update button
+- Banner on the main screen while updating, and an "update available" prompt when a download fails with HTTP 403
+
+### Fixed
+- Downloads failing mid-way with `HTTP Error 403: Forbidden`. Root cause: YouTube disabled the `android_vr` client streams on 2026-08-17; yt-dlp <= 2026.07.04 still used it by default. The app had no update path for yt-dlp, so every install froze on whatever version it fetched at first launch.
+- `--no-update` passed to yt-dlp so its 90-day "outdated" warning no longer pollutes stderr / error messages
+
 ## [1.0.1] - 2026-03-29
 
 ### Security

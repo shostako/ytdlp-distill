@@ -15,6 +15,10 @@ export default function App() {
     hasBinaries,
     isLoading,
     loadSettings,
+    ytdlpUpdate,
+    setYtdlpUpdate,
+    updateYtdlp,
+    checkYtdlpUpdate,
   } = useSettingsStore();
 
   const { addDownload, updateDownload } = useDownloadStore();
@@ -48,10 +52,41 @@ export default function App() {
         filename: data.filename,
         error: data.error,
       });
+      // 403 = yt-dlpが古い典型パターン。最新版があるか確認してバナーで促す
+      if (data.status === 'error' && typeof data.error === 'string' && /HTTP Error 403/i.test(data.error)) {
+        checkYtdlpUpdate();
+      }
     });
 
     return unsubscribe;
-  }, [updateDownload]);
+  }, [updateDownload, checkYtdlpUpdate]);
+
+  // 起動時にyt-dlpを自動更新（YouTube側の変更で古い版が突然死ぬのを防ぐ）
+  useEffect(() => {
+    if (hasBinaries) {
+      updateYtdlp(true);
+    }
+  }, [hasBinaries, updateYtdlp]);
+
+  // yt-dlp更新中のDL進捗をバナーに反映
+  useEffect(() => {
+    const unsubscribe = window.electronAPI.onBinaryDownloadStatus((data) => {
+      if (data.binary !== 'yt-dlp') return;
+      if (data.status === 'downloading' && typeof data.percent === 'number') {
+        setYtdlpUpdate({ percent: data.percent });
+      } else if (data.status === 'verifying') {
+        setYtdlpUpdate({ percent: 100 });
+      }
+    });
+    return unsubscribe;
+  }, [setYtdlpUpdate]);
+
+  // 「更新完了」バナーは数秒で消す
+  useEffect(() => {
+    if (ytdlpUpdate.state !== 'updated') return;
+    const timer = setTimeout(() => setYtdlpUpdate({ state: 'up-to-date' }), 6000);
+    return () => clearTimeout(timer);
+  }, [ytdlpUpdate.state, setYtdlpUpdate]);
 
   // リクエスト順序管理（古いリクエストの結果を破棄するため）
   const fetchIdRef = useRef(0);
@@ -143,6 +178,45 @@ export default function App() {
           </svg>
         </button>
       </div>
+
+      {/* yt-dlp update banner */}
+      {ytdlpUpdate.state === 'updating' && (
+        <div className="text-xs text-[#4a9eff] bg-[#4a9eff]/10 border border-[#4a9eff]/20 rounded-lg px-3 py-2 animate-fade-in flex items-center gap-2">
+          <div className="w-3 h-3 border-2 border-[#4a9eff]/30 border-t-[#4a9eff] rounded-full spinner flex-shrink-0" />
+          <span className="truncate">
+            Updating yt-dlp {ytdlpUpdate.current ?? '?'} → {ytdlpUpdate.latest ?? 'latest'}
+            {typeof ytdlpUpdate.percent === 'number' ? ` (${ytdlpUpdate.percent}%)` : ''}
+          </span>
+        </div>
+      )}
+      {ytdlpUpdate.state === 'updated' && (
+        <div className="text-xs text-[#30d158] bg-[#30d158]/10 border border-[#30d158]/20 rounded-lg px-3 py-2 animate-fade-in">
+          yt-dlp updated to {ytdlpUpdate.current}
+        </div>
+      )}
+      {ytdlpUpdate.state === 'outdated' && (
+        <div className="text-xs text-[#eab308] bg-[#eab308]/10 border border-[#eab308]/20 rounded-lg px-3 py-2 animate-fade-in flex items-center justify-between gap-2">
+          <span className="truncate">yt-dlp {ytdlpUpdate.latest} available (installed: {ytdlpUpdate.current ?? 'unknown'})</span>
+          <button
+            onClick={() => updateYtdlp()}
+            className="flex-shrink-0 px-2 py-0.5 rounded bg-[#eab308]/20 hover:bg-[#eab308]/30 text-[#eab308] transition-colors duration-200"
+          >
+            Update
+          </button>
+        </div>
+      )}
+      {ytdlpUpdate.state === 'error' && (
+        <div className="text-xs text-[#ef4444] bg-[#ef4444]/10 border border-[#ef4444]/20 rounded-lg px-3 py-2 animate-fade-in flex items-center justify-between gap-2">
+          <span className="truncate" title={ytdlpUpdate.error}>yt-dlp update failed: {ytdlpUpdate.error}</span>
+          <button
+            onClick={() => setYtdlpUpdate({ state: 'idle', error: undefined })}
+            className="flex-shrink-0 text-[#ef4444]/70 hover:text-[#ef4444]"
+            title="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* URL Input */}
       <UrlInput

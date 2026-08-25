@@ -20,6 +20,7 @@ Distill forces **AAC (M4A) audio** on every download, guaranteeing playback on v
 
 - **Universal playback** — AAC audio in MP4, plays everywhere
 - **Auto-setup** — Downloads yt-dlp, ffmpeg, and deno automatically on first launch
+- **Auto-update** — Checks yt-dlp against the latest release on every launch and replaces it when outdated (SHA256 verified). YouTube changes regularly break old yt-dlp versions; you should never have to think about it
 - **Resolution selection** — 360p, 480p, 720p, 1080p, 1440p, 4K, Best, MP3
 - **Video preview** — Shows thumbnail, title, channel, and duration before download
 - **Download progress** — Real-time percentage, speed, and ETA
@@ -42,6 +43,8 @@ npm start
 ```
 
 On first launch, Distill will automatically download the required tools (yt-dlp, ffmpeg, deno) to `%APPDATA%/ytdlp-distill/bin/`.
+
+On every later launch it compares the installed yt-dlp with the latest GitHub release and updates it if needed. The current version and a manual **Check / Update** button are in Settings. If a download ever fails with `HTTP Error 403`, that is almost always an outdated yt-dlp — update from Settings.
 
 ### Windows installer
 

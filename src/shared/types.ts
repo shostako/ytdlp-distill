@@ -27,6 +27,26 @@ export interface BinaryResult {
   deno: string | null;
 }
 
+/** yt-dlp更新チェック結果 */
+export interface YtdlpUpdateInfo {
+  current: string | null;
+  latest: string | null;
+  outdated: boolean;
+}
+
+/** yt-dlp更新実行結果 */
+export interface YtdlpUpdateResult extends YtdlpUpdateInfo {
+  updated: boolean;
+}
+
+/** バイナリDL進捗（main → renderer） */
+export interface BinaryDownloadStatus {
+  binary: 'yt-dlp' | 'ffmpeg' | 'deno';
+  status: 'searching' | 'downloading' | 'verifying' | 'extracting' | 'complete' | 'error';
+  percent?: number;
+  error?: string;
+}
+
 /** アプリ設定 */
 export interface AppSettings {
   downloadPath: string;
@@ -41,6 +61,8 @@ export interface AppSettings {
 export interface ElectronAPI {
   checkBinaries: () => Promise<BinaryResult>;
   checkBinariesExist: () => Promise<BinaryResult>;
+  checkYtdlpUpdate: () => Promise<YtdlpUpdateInfo>;
+  updateYtdlp: () => Promise<YtdlpUpdateResult>;
   fetchMetadata: (url: string) => Promise<VideoMetadata>;
   startDownload: (url: string, resolution: string) => Promise<string>;
   cancelDownload: (id: string) => Promise<boolean>;
@@ -50,7 +72,7 @@ export interface ElectronAPI {
   openFolder: (path: string) => Promise<void>;
   showInFolder: (path: string) => Promise<void>;
   onDownloadProgress: (callback: (data: DownloadProgress & { id: string }) => void) => () => void;
-  onBinaryDownloadStatus: (callback: (data: any) => void) => () => void;
+  onBinaryDownloadStatus: (callback: (data: BinaryDownloadStatus) => void) => () => void;
   resizeWindow: (width: number, height: number) => Promise<void>;
 }
 
