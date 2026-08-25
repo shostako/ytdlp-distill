@@ -2,7 +2,7 @@
 
 ## 現在の状態
 - **最終更新**: 2026-08-26
-- **バージョン**: v1.1.0（yt-dlp自動更新。Release/インストーラー作成は未）
+- **バージョン**: v1.2.0（v1.1.0 = yt-dlp自動更新 PR #1、v1.2.0 = 日本語UI feat/i18n-ja。Release/インストーラーは未）
 - **Codex評価**: Good（High/Medium全件対応、Low 2件残り）
 
 ## 完了済み
@@ -42,6 +42,13 @@
 - [x] DL失敗が403なら「yt-dlpが古い」ヒント + 更新確認を自動起動
 - [x] yt-dlp呼び出しに `--no-update`（90日警告の抑止）
 - 背景: 2026-08-17にYouTubeが`android_vr`クライアントを403化 → yt-dlp<=2026.07.04が全滅。アプリは初回DL以降yt-dlpを更新しない設計だったため、全インストール先で発症
+
+### v1.2.0 (2026-08-26) feat/i18n-ja
+- [x] `src/shared/i18n.ts` に en/ja 辞書（型で両言語の網羅を強制）、`resolveLocale`、main のエラーコード `E_*` → レンダラで訳す
+- [x] 設定 `language: system|en|ja`（既定 system = `app.getLocale()`）、Settings のセレクトで再起動なし切替
+- [x] 右クリックメニューも追従、`<html lang>` で日本語フォントスタック切替
+- [x] Windows 目視: 日本語のメイン/設定/履歴/完了、English への即時切替（docs/screenshot-ja-*.png）
+- 訳語はユーザー確定: 一覧見出し「履歴」、Best「最高」
 
 ## 未対応（Low優先度）
 - [ ] 型定義の重複解消（ytdlp.ts/VideoCard.tsxが独自定義を持ってる → shared/types.tsに統一）
