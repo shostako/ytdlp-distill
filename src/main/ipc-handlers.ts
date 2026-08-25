@@ -1,6 +1,6 @@
 import { ipcMain, dialog, shell, BrowserWindow, app } from 'electron';
 import { fetchMetadata, startDownload, DownloadProgress } from './ytdlp';
-import { ensureBinaries, findBinary, checkYtdlpUpdate, updateYtdlp } from './binary-manager';
+import { ensureBinaries, findBinary, checkYtdlpUpdate, updateYtdlp, cleanupStaleFiles } from './binary-manager';
 import { getSetting, setSetting, getAllSettings } from './settings';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -19,6 +19,8 @@ function generateId(): string {
 }
 
 export function registerIpcHandlers(): void {
+  cleanupStaleFiles();
+
   // バイナリ確認（検索+DL）
   ipcMain.handle('check-binaries', async () => {
     return ensureBinaries();

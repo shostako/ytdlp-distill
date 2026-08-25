@@ -226,6 +226,55 @@ async function verifySha256(filePath: string, name: BinaryName): Promise<void> {
   console.log(`SHA256 verified for ${name}: ${actual.slice(0, 16)}...`);
 }
 
+const LOCK_CODES = new Set(['EPERM', 'EBUSY', 'EACCES']);
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/**
+ * 検証済みの新exeを据える。Windowsでは実行中のexeは上書きできないが「名前の変更」はできるので、
+ *  1) rename(tmp→dest) を短いリトライで試す（Defender等が落としたばかりのファイルを掴んでいる間を凌ぐ）
+ *  2) それでもロックされていれば dest を .old に退避してから tmp→dest
+ * 退避した .old は次回起動時に掃除する（cleanupStaleFiles）。
+ */
+async function replaceExe(tmpPath: string, destPath: string): Promise<void> {
+  const tryRename = async (from: string, to: string, attempts: number): Promise<boolean> => {
+    for (let i = 0; i < attempts; i++) {
+      try {
+        fs.renameSync(from, to);
+        return true;
+      } catch (e: any) {
+        if (!LOCK_CODES.has(e?.code)) throw e;
+        await sleep(300 * (i + 1));
+      }
+    }
+    return false;
+  };
+
+  if (await tryRename(tmpPath, destPath, 5)) return;
+
+  // dest が使用中: 退避してから据える
+  const oldPath = `${destPath}.old`;
+  fs.rmSync(oldPath, { force: true });
+  if (fs.existsSync(destPath) && !(await tryRename(destPath, oldPath, 3))) {
+    throw new Error(errorCode('E_YTDLP_IN_USE'));
+  }
+  if (!(await tryRename(tmpPath, destPath, 5))) {
+    // 据え付けに失敗したら退避を戻して元の状態を保つ
+    if (fs.existsSync(oldPath) && !fs.existsSync(destPath)) {
+      try { fs.renameSync(oldPath, destPath); } catch { /* 戻せなければ次回起動時の再DLに任せる */ }
+    }
+    throw new Error(errorCode('E_YTDLP_IN_USE'));
+  }
+}
+
+/**
+ * 前回の更新で退避した .old / 中断した .download を掃除する（起動時、best effort）
+ */
+export function cleanupStaleFiles(): void {
+  for (const suffix of ['.old', '.download']) {
+    try { fs.rmSync(path.join(BIN_DIR, `yt-dlp.exe${suffix}`), { force: true }); } catch { /* まだ使用中なら次回 */ }
+  }
+}
+
 /**
  * zipを展開して指定exeを取り出す
  */
@@ -339,14 +388,7 @@ async function downloadBinary(name: BinaryName): Promise<string> {
     try {
       await downloadFile(url, tmpPath, name);
       await verifySha256(tmpPath, name);
-      try {
-        fs.renameSync(tmpPath, destPath);
-      } catch (e: any) {
-        if (e?.code === 'EPERM' || e?.code === 'EBUSY' || e?.code === 'EACCES') {
-          throw new Error(errorCode('E_YTDLP_IN_USE'));
-        }
-        throw e;
-      }
+      await replaceExe(tmpPath, destPath);
     } finally {
       fs.rmSync(tmpPath, { force: true });
     }
