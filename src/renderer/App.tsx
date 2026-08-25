@@ -169,7 +169,7 @@ export default function App() {
       {/* Header with settings gear */}
       <div className="flex items-center justify-between">
         <h1 className="text-sm font-semibold text-[#f5f5f7] tracking-tight">
-          Distill
+          {t('app.brand')}
         </h1>
         <button
           onClick={() => setSettingsOpen(true)}

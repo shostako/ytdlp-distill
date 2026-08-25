@@ -16,6 +16,7 @@ export function resolveLocale(language: Language | undefined, systemLocale: stri
 
 const en = {
   // App
+  'app.brand': 'Distill',
   'app.settings': 'Settings',
   'app.download': 'Download',
   'app.noSaveLocation': 'No save location',
@@ -109,6 +110,7 @@ const en = {
 export type MsgKey = keyof typeof en;
 
 const ja: Record<MsgKey, string> = {
+  'app.brand': '動画抽出',
   'app.settings': '設定',
   'app.download': 'ダウンロード',
   'app.noSaveLocation': '保存先未設定',
