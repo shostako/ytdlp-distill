@@ -116,7 +116,7 @@ export default function App() {
         setIsFetching(false);
       }
     }
-  }, []);
+  }, [t, te]);
 
   // Start download
   const handleDownload = useCallback(async () => {
@@ -148,7 +148,7 @@ export default function App() {
     } finally {
       setIsDownloading(false);
     }
-  }, [metadata, resolution, isDownloading, addDownload]);
+  }, [metadata, resolution, isDownloading, addDownload, te]);
 
   // Loading state
   if (isLoading) {
