@@ -78,7 +78,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   updateYtdlp: async (auto = false) => {
     const { state } = get().ytdlpUpdate;
-    if (state === 'updating') return;
+    // 'checking' 中も弾く。遅れて返った check の結果が 'updating' を上書きして進捗バナーを消すのを防ぐ
+    if (state === 'checking' || state === 'updating') return;
     set((s) => ({ ytdlpUpdate: { ...s.ytdlpUpdate, state: 'checking', error: undefined, percent: undefined } }));
     try {
       // まず比較だけして、更新が要る時だけ 'updating' に遷移（バナー表示はここから）

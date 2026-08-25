@@ -14,6 +14,9 @@ const execFileAsync = promisify(execFile);
 
 const BIN_DIR = path.join(app.getPath('userData'), 'bin');
 
+/** HTTP の無通信タイムアウト（接続後にデータが止まったら諦める） */
+const IDLE_TIMEOUT_MS = 30000;
+
 const DOWNLOAD_URLS: Record<BinaryName, string> = {
   'yt-dlp': 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe',
   'ffmpeg': 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip',
@@ -70,13 +73,15 @@ function downloadFile(url: string, dest: string, binaryName: BinaryName): Promis
       }
 
       const mod = reqUrl.startsWith('https') ? https : http;
-      mod.get(reqUrl, (res) => {
+      const req = mod.get(reqUrl, (res) => {
         if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          res.resume();
           doRequest(res.headers.location, redirectCount + 1);
           return;
         }
 
         if (res.statusCode !== 200) {
+          res.resume();
           reject(new Error(`HTTP ${res.statusCode} for ${reqUrl}`));
           return;
         }
@@ -99,7 +104,11 @@ function downloadFile(url: string, dest: string, binaryName: BinaryName): Promis
         pipeline(res, file)
           .then(() => resolve())
           .catch(reject);
-      }).on('error', reject);
+      });
+      req.on('error', reject);
+      // 無通信タイムアウト。接続後に止まった転送で Promise が永遠に settle しないのを防ぐ
+      // （settle しないと updateYtdlp の in-flight 合流が解放されず、更新経路が再起動まで死ぬ）
+      req.setTimeout(IDLE_TIMEOUT_MS, () => req.destroy(new Error(`Download stalled (no data for ${IDLE_TIMEOUT_MS / 1000}s): ${reqUrl}`)));
     };
 
     doRequest(url);
@@ -118,13 +127,15 @@ function fetchText(url: string): Promise<string> {
       }
 
       const mod = reqUrl.startsWith('https') ? https : http;
-      mod.get(reqUrl, (res) => {
+      const req = mod.get(reqUrl, (res) => {
         if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          res.resume();
           doRequest(res.headers.location, redirectCount + 1);
           return;
         }
 
         if (res.statusCode !== 200) {
+          res.resume();
           reject(new Error(`HTTP ${res.statusCode}`));
           return;
         }
@@ -132,7 +143,10 @@ function fetchText(url: string): Promise<string> {
         let data = '';
         res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
         res.on('end', () => resolve(data));
-      }).on('error', reject);
+        res.on('error', reject);
+      });
+      req.on('error', reject);
+      req.setTimeout(IDLE_TIMEOUT_MS, () => req.destroy(new Error(`Request stalled: ${reqUrl}`)));
     };
 
     doRequest(url);
@@ -396,7 +410,7 @@ function fetchRedirectLocation(url: string): Promise<string> {
       }
     });
     req.on('error', reject);
-    req.setTimeout(15000, () => req.destroy(new Error('Timeout resolving latest release')));
+    req.setTimeout(IDLE_TIMEOUT_MS, () => req.destroy(new Error('Timeout resolving latest release')));
   });
 }
 
