@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useSettingsStore } from '../stores/settings-store';
 import ResolutionPicker from './ResolutionPicker';
 
@@ -8,10 +8,43 @@ interface SettingsPanelProps {
 }
 
 export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
-  const { downloadPath, defaultResolution, setDownloadPath, setDefaultResolution } =
-    useSettingsStore();
+  const {
+    downloadPath, defaultResolution, setDownloadPath, setDefaultResolution,
+    ytdlpUpdate, checkYtdlpUpdate, updateYtdlp,
+  } = useSettingsStore();
+
+  // 開いた時点で版が未取得なら確認する（起動時の自動更新が走っていれば既にある）
+  useEffect(() => {
+    if (isOpen && ytdlpUpdate.state === 'idle') {
+      checkYtdlpUpdate();
+    }
+  }, [isOpen, ytdlpUpdate.state, checkYtdlpUpdate]);
 
   if (!isOpen) return null;
+
+  const busy = ytdlpUpdate.state === 'checking' || ytdlpUpdate.state === 'updating';
+  const ytdlpStatusText = (() => {
+    switch (ytdlpUpdate.state) {
+      case 'checking': return 'Checking...';
+      case 'updating': return `Updating to ${ytdlpUpdate.latest ?? 'latest'}${typeof ytdlpUpdate.percent === 'number' ? ` (${ytdlpUpdate.percent}%)` : ''}`;
+      case 'updated': return `Updated to ${ytdlpUpdate.current}`;
+      case 'up-to-date': return `${ytdlpUpdate.current ?? 'unknown'} (latest)`;
+      case 'outdated': return `${ytdlpUpdate.current ?? 'unknown'} → ${ytdlpUpdate.latest} available`;
+      case 'error': return `Error: ${ytdlpUpdate.error}`;
+      default: return ytdlpUpdate.current ?? 'unknown';
+    }
+  })();
+  const ytdlpStatusColor = (() => {
+    switch (ytdlpUpdate.state) {
+      case 'checking':
+      case 'updating': return 'text-[#4a9eff]';
+      case 'updated':
+      case 'up-to-date': return 'text-[#30d158]';
+      case 'outdated': return 'text-[#eab308]';
+      case 'error': return 'text-[#ff453a]';
+      default: return 'text-[#8e8e93]';
+    }
+  })();
 
   const handleSelectFolder = async () => {
     const folder = await window.electronAPI.selectFolder();
@@ -87,6 +120,31 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
             value={defaultResolution}
             onChange={handleResolutionChange}
           />
+        </div>
+
+        {/* yt-dlp version / update */}
+        <div className="mb-5">
+          <label className="block text-xs font-medium text-[#8e8e93] mb-1.5 uppercase tracking-wider">
+            yt-dlp
+          </label>
+          <div className="flex items-center gap-2">
+            <div
+              className={`flex-1 bg-[#1c1c2e] border border-[#2a2a3e] rounded-lg px-3 py-2 text-xs font-mono truncate ${ytdlpStatusColor}`}
+              title={ytdlpUpdate.error || ytdlpStatusText}
+            >
+              {ytdlpStatusText}
+            </div>
+            <button
+              onClick={() => (ytdlpUpdate.state === 'outdated' ? updateYtdlp() : checkYtdlpUpdate())}
+              disabled={busy}
+              className="flex-shrink-0 px-3 py-2 bg-[#1c1c2e] border border-[#2a2a3e] rounded-lg text-xs text-[#8e8e93] hover:text-[#f5f5f7] hover:border-[#3a3a4e] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {ytdlpUpdate.state === 'outdated' ? 'Update' : 'Check'}
+            </button>
+          </div>
+          <p className="mt-1.5 text-[10px] text-[#555568]">
+            Checked and updated automatically at startup. YouTube changes break old versions.
+          </p>
         </div>
 
         {/* Close button */}

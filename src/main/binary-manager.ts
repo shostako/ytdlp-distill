@@ -29,6 +29,19 @@ const CHECKSUM_URLS: Record<BinaryName, string> = {
 
 export type BinaryName = 'yt-dlp' | 'ffmpeg' | 'deno';
 
+/** yt-dlp最新リリース（リダイレクト先のtagからバージョンを読む。API rate limit回避） */
+const YTDLP_LATEST_RELEASE_URL = 'https://github.com/yt-dlp/yt-dlp/releases/latest';
+
+export interface YtdlpUpdateInfo {
+  current: string | null;
+  latest: string | null;
+  outdated: boolean;
+}
+
+export interface YtdlpUpdateResult extends YtdlpUpdateInfo {
+  updated: boolean;
+}
+
 export interface DownloadStatus {
   binary: BinaryName;
   status: 'searching' | 'downloading' | 'verifying' | 'extracting' | 'complete' | 'error';
@@ -305,10 +318,24 @@ async function downloadBinary(name: BinaryName): Promise<string> {
   const exeName = `${name}.exe`;
 
   if (name === 'yt-dlp') {
-    // 単体exe: DL → 検証
+    // 単体exe: 一時名にDL → 検証 → rename（既存exeを壊さない原子的更新）
     const destPath = path.join(BIN_DIR, exeName);
-    await downloadFile(url, destPath, name);
-    await verifySha256(destPath, name);
+    const tmpPath = path.join(BIN_DIR, `${exeName}.download`);
+    fs.rmSync(tmpPath, { force: true });
+    try {
+      await downloadFile(url, tmpPath, name);
+      await verifySha256(tmpPath, name);
+      try {
+        fs.renameSync(tmpPath, destPath);
+      } catch (e: any) {
+        if (e?.code === 'EPERM' || e?.code === 'EBUSY' || e?.code === 'EACCES') {
+          throw new Error('yt-dlp.exe is in use. Wait for downloads to finish and try again.');
+        }
+        throw e;
+      }
+    } finally {
+      fs.rmSync(tmpPath, { force: true });
+    }
     sendStatus({ binary: name, status: 'complete' });
     setSetting('ytdlpPath', destPath);
     return destPath;
@@ -353,4 +380,105 @@ export async function ensureBinaries(): Promise<{ ytdlp: string | null; ffmpeg: 
 export function getBinDir(): string {
   fs.mkdirSync(BIN_DIR, { recursive: true });
   return BIN_DIR;
+}
+
+/**
+ * リダイレクト先URLを1段だけ解決する（3xx以外は例外）
+ */
+function fetchRedirectLocation(url: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, { headers: { 'User-Agent': 'ytdlp-distill' } }, (res) => {
+      res.resume();
+      if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        resolve(res.headers.location);
+      } else {
+        reject(new Error(`Expected redirect, got HTTP ${res.statusCode}`));
+      }
+    });
+    req.on('error', reject);
+    req.setTimeout(15000, () => req.destroy(new Error('Timeout resolving latest release')));
+  });
+}
+
+/**
+ * yt-dlp --version の出力（例: 2026.08.19）。実行不可ならnull。
+ */
+export async function getYtdlpVersion(ytdlpPath: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync(ytdlpPath, ['--version'], { timeout: 20000, windowsHide: true });
+    const v = stdout.trim().split(/\r?\n/).pop()?.trim() || '';
+    return /^\d{4}\.\d{2}\.\d{2}(\.\d+)?$/.test(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * GitHubの最新リリースtag（例: 2026.08.19）。取得不可ならnull。
+ */
+export async function fetchLatestYtdlpVersion(): Promise<string | null> {
+  try {
+    const location = await fetchRedirectLocation(YTDLP_LATEST_RELEASE_URL);
+    const m = location.match(/\/releases\/tag\/([^/?#]+)/);
+    return m ? decodeURIComponent(m[1]) : null;
+  } catch (e: any) {
+    console.warn(`Could not fetch latest yt-dlp version: ${e?.message ?? e}`);
+    return null;
+  }
+}
+
+/**
+ * yt-dlpの日付バージョン（YYYY.MM.DD[.N]）を数値比較。a<b なら負。
+ */
+export function compareYtdlpVersions(a: string, b: string): number {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const x = pa[i] ?? 0;
+    const y = pb[i] ?? 0;
+    if (x !== y) return x < y ? -1 : 1;
+  }
+  return 0;
+}
+
+/**
+ * 現在のyt-dlpと最新リリースを比較する。ネットワーク不可なら latest=null, outdated=false。
+ */
+export async function checkYtdlpUpdate(): Promise<YtdlpUpdateInfo> {
+  const ytdlpPath = await findBinary('yt-dlp');
+  const [current, latest] = await Promise.all([
+    ytdlpPath ? getYtdlpVersion(ytdlpPath) : Promise.resolve(null),
+    fetchLatestYtdlpVersion(),
+  ]);
+  // --version が読めないバイナリは壊れているか未知の版なので、最新が分かるなら更新対象にする
+  const outdated = latest !== null && (current === null || compareYtdlpVersions(current, latest) < 0);
+  return { current, latest, outdated };
+}
+
+let ytdlpUpdateInFlight: Promise<YtdlpUpdateResult> | null = null;
+
+/**
+ * yt-dlpが古ければ最新版を取得して差し替える（SHA256検証付き、同時実行は1本に合流）。
+ * 更新の必要が無ければ何もしない。
+ */
+export function updateYtdlp(): Promise<YtdlpUpdateResult> {
+  if (ytdlpUpdateInFlight) return ytdlpUpdateInFlight;
+
+  ytdlpUpdateInFlight = (async () => {
+    const info = await checkYtdlpUpdate();
+    if (!info.outdated) {
+      return { ...info, updated: false };
+    }
+    const newPath = await downloadBinary('yt-dlp');
+    const current = await getYtdlpVersion(newPath);
+    if (current === null) {
+      throw new Error('Downloaded yt-dlp does not run. Check antivirus or try again.');
+    }
+    return { current, latest: info.latest, outdated: false, updated: true };
+  })().finally(() => {
+    ytdlpUpdateInFlight = null;
+  });
+
+  return ytdlpUpdateInFlight;
 }

@@ -1,8 +1,8 @@
 # プロジェクト進捗状況
 
 ## 現在の状態
-- **最終更新**: 2026-03-29 09:00
-- **バージョン**: v1.0.1（GitHub Release済み、インストーラーアップロード済み）
+- **最終更新**: 2026-08-26
+- **バージョン**: v1.1.0（yt-dlp自動更新。Release/インストーラー作成は未）
 - **Codex評価**: Good（High/Medium全件対応、Low 2件残り）
 
 ## 完了済み
@@ -36,6 +36,13 @@
 - [x] CHANGELOG.md作成
 - [x] v1.0.1 Release + インストーラーアップロード
 
+### v1.1.0 (2026-08-26)
+- [x] yt-dlp自動更新（起動時にGitHub latest tagと比較 → 古ければSHA256検証付きで再DL、一時名→rename の原子的差し替え）
+- [x] 設定パネルにyt-dlp版表示 + Check/Updateボタン、メイン画面に更新バナー
+- [x] DL失敗が403なら「yt-dlpが古い」ヒント + 更新確認を自動起動
+- [x] yt-dlp呼び出しに `--no-update`（90日警告の抑止）
+- 背景: 2026-08-17にYouTubeが`android_vr`クライアントを403化 → yt-dlp<=2026.07.04が全滅。アプリは初回DL以降yt-dlpを更新しない設計だったため、全インストール先で発症
+
 ## 未対応（Low優先度）
 - [ ] 型定義の重複解消（ytdlp.ts/VideoCard.tsxが独自定義を持ってる → shared/types.tsに統一）
 - [ ] ESLint/tsc互換性（TS 4.5設定でsatisfies構文エラー → TypeScript更新が必要）
@@ -45,4 +52,5 @@
 - Low 2件の解消
 - TypeScriptバージョン更新（4.5 → 5.x）
 - アプリアイコンのカスタマイズ（現在Electronデフォルト）
-- アップデート通知機能（yt-dlp/ffmpegの新バージョン検知）
+- ffmpeg/denoの更新（yt-dlpは済み。壊れる頻度が低いので保留）
+- v1.1.0のGitHub Release + インストーラー作成（Windows側 `npm run make`）

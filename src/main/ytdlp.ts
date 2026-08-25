@@ -79,7 +79,7 @@ function formatDuration(seconds: number): string {
 export async function fetchMetadata(ytdlpPath: string, url: string): Promise<VideoMetadata> {
   const env = await getSpawnEnv();
   return new Promise((resolve, reject) => {
-    const proc = spawn(ytdlpPath, ['--dump-json', '--no-download', url], {
+    const proc = spawn(ytdlpPath, ['--dump-json', '--no-download', '--no-update', url], {
       stdio: ['ignore', 'pipe', 'pipe'],
       env,
     });
@@ -139,6 +139,7 @@ export async function startDownload(
     '--progress-template', 'download:PROGRESS|%(progress.status)s|%(progress._percent_str)s|%(progress._speed_str)s|%(progress._eta_str)s|%(progress._total_bytes_str)s',
     '--progress-template', 'postprocess:POSTPROCESS|%(progress.status)s',
     '--no-colors',
+    '--no-update', // 90日警告を抑止（更新はアプリ側が管理する）
     url,
   ];
 

@@ -1,6 +1,6 @@
 import { ipcMain, dialog, shell, BrowserWindow } from 'electron';
 import { fetchMetadata, startDownload, DownloadProgress } from './ytdlp';
-import { ensureBinaries, findBinary } from './binary-manager';
+import { ensureBinaries, findBinary, checkYtdlpUpdate, updateYtdlp } from './binary-manager';
 import { getSetting, setSetting, getAllSettings } from './settings';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -31,6 +31,19 @@ export function registerIpcHandlers(): void {
     return { ytdlp, ffmpeg, deno };
   });
 
+  // yt-dlp更新チェック（バージョン比較のみ、DLしない）
+  ipcMain.handle('check-ytdlp-update', async () => {
+    return checkYtdlpUpdate();
+  });
+
+  // yt-dlp更新（古ければ最新版をDLして差し替え）。DL中は実行exeを差し替えられないので拒否
+  ipcMain.handle('update-ytdlp', async () => {
+    if (activeDownloads.size > 0) {
+      throw new Error('Cannot update yt-dlp while downloads are running.');
+    }
+    return updateYtdlp();
+  });
+
   // メタデータ取得
   ipcMain.handle('fetch-metadata', async (_event, url: string) => {
     const { ytdlp } = await ensureBinaries();
@@ -56,6 +69,10 @@ export function registerIpcHandlers(): void {
       const win = BrowserWindow.fromWebContents(event.sender);
 
       const { cancel } = await startDownload(ytdlp, url, resolution, (progress: DownloadProgress) => {
+        // 403はYouTube側の仕様変更でyt-dlpが古くなった典型。更新を促す
+        if (progress.status === 'error' && progress.error && /HTTP Error 403/i.test(progress.error)) {
+          progress = { ...progress, error: `${progress.error} — yt-dlp may be outdated. Update it from Settings.` };
+        }
         if (win && !win.isDestroyed()) {
           win.webContents.send('download-progress', { id, ...progress });
         }
