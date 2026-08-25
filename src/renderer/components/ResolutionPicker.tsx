@@ -1,4 +1,5 @@
 import React from 'react';
+import { useT } from '../i18n';
 
 const RESOLUTIONS = [
   { label: '360p', value: '360p' },
@@ -7,7 +8,7 @@ const RESOLUTIONS = [
   { label: '1080p', value: '1080p' },
   { label: '1440p', value: '1440p' },
   { label: '4K', value: '2160p' },
-  { label: 'Best', value: 'best' },
+  { label: 'Best', value: 'best', labelKey: 'res.best' as const },
   { label: 'MP3', value: 'mp3' },
 ];
 
@@ -18,6 +19,7 @@ interface ResolutionPickerProps {
 }
 
 export default function ResolutionPicker({ value, onChange, disabled }: ResolutionPickerProps) {
+  const { t } = useT();
   return (
     <select
       value={value}
@@ -33,7 +35,7 @@ export default function ResolutionPicker({ value, onChange, disabled }: Resoluti
     >
       {RESOLUTIONS.map((r) => (
         <option key={r.value} value={r.value}>
-          {r.label}
+          {'labelKey' in r && r.labelKey ? t(r.labelKey) : r.label}
         </option>
       ))}
     </select>

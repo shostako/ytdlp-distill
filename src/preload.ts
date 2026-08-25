@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   startDownload: (url: string, resolution: string) => ipcRenderer.invoke('start-download', url, resolution),
   cancelDownload: (id: string) => ipcRenderer.invoke('cancel-download', id),
   getSettings: () => ipcRenderer.invoke('get-settings'),
+  getSystemLocale: () => ipcRenderer.invoke('get-system-locale'),
   setSetting: (key: string, value: unknown) => ipcRenderer.invoke('set-setting', key, value),
   selectFolder: () => ipcRenderer.invoke('select-folder'),
   openFolder: (path: string) => ipcRenderer.invoke('open-folder', path),

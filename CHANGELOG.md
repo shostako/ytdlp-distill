@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0] - 2026-08-26
+
+### Added
+- Japanese UI. Settings → Language: System (follows the OS locale) / English / 日本語. Switches live, no restart.
+- Main-process errors are now error codes translated in the renderer; yt-dlp's own output is shown verbatim.
+- Errors from starting a download (e.g. concurrency limit) are shown in the UI instead of only the console.
+
 ## [1.1.0] - 2026-08-26
 
 ### Added

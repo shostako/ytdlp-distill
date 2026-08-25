@@ -20,6 +20,7 @@ Distill forces **AAC (M4A) audio** on every download, guaranteeing playback on v
 
 - **Universal playback** — AAC audio in MP4, plays everywhere
 - **Auto-setup** — Downloads yt-dlp, ffmpeg, and deno automatically on first launch
+- **English / 日本語** — Language follows the OS by default; switchable in Settings without restart
 - **Auto-update** — Checks yt-dlp against the latest release on every launch and replaces it when outdated (SHA256 verified). YouTube changes regularly break old yt-dlp versions; you should never have to think about it
 - **Resolution selection** — 360p, 480p, 720p, 1080p, 1440p, 4K, Best, MP3
 - **Video preview** — Shows thumbnail, title, channel, and duration before download
