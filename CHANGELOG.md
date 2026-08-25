@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.1] - 2026-08-26
+
+### Fixed
+- yt-dlp update failed with "yt-dlp.exe is in use" when the old exe was running (e.g. a URL pasted right at startup) or antivirus was still scanning the freshly downloaded file. The replacement now retries briefly, then renames the running exe aside (`yt-dlp.exe.old`) and installs the new one; the leftover is removed at next startup.
+
 ## [1.2.0] - 2026-08-26
 
 ### Added
