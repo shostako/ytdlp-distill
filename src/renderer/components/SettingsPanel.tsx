@@ -29,6 +29,7 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
       case 'updating': return `Updating to ${ytdlpUpdate.latest ?? 'latest'}${typeof ytdlpUpdate.percent === 'number' ? ` (${ytdlpUpdate.percent}%)` : ''}`;
       case 'updated': return `Updated to ${ytdlpUpdate.current}`;
       case 'up-to-date': return `${ytdlpUpdate.current ?? 'unknown'} (latest)`;
+      case 'unknown': return `${ytdlpUpdate.current ?? 'unknown'} (could not check for updates)`;
       case 'outdated': return `${ytdlpUpdate.current ?? 'unknown'} → ${ytdlpUpdate.latest} available`;
       case 'error': return `Error: ${ytdlpUpdate.error}`;
       default: return ytdlpUpdate.current ?? 'unknown';
@@ -41,6 +42,7 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
       case 'updated':
       case 'up-to-date': return 'text-[#30d158]';
       case 'outdated': return 'text-[#eab308]';
+      case 'unknown': return 'text-[#8e8e93]';
       case 'error': return 'text-[#ff453a]';
       default: return 'text-[#8e8e93]';
     }

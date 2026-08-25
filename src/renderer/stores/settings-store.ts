@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import type { YtdlpUpdateInfo } from '../../shared/types';
 
-export type YtdlpUpdateState = 'idle' | 'checking' | 'updating' | 'updated' | 'up-to-date' | 'outdated' | 'error';
+/** 'unknown' = 最新版が取得できず比較していない（up-to-date と混同しない） */
+export type YtdlpUpdateState = 'idle' | 'checking' | 'updating' | 'updated' | 'up-to-date' | 'outdated' | 'unknown' | 'error';
 
 export interface YtdlpUpdateStatus extends YtdlpUpdateInfo {
   state: YtdlpUpdateState;
@@ -27,6 +28,12 @@ interface SettingsStore {
 }
 
 const IDLE_UPDATE: YtdlpUpdateStatus = { state: 'idle', current: null, latest: null, outdated: false };
+
+/** 比較結果 → 表示状態。latest が無い = 比較できていないので 'unknown' */
+function stateFromInfo(info: YtdlpUpdateInfo): YtdlpUpdateState {
+  if (info.latest === null) return 'unknown';
+  return info.outdated ? 'outdated' : 'up-to-date';
+}
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
   downloadPath: '',
@@ -63,7 +70,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set((s) => ({ ytdlpUpdate: { ...s.ytdlpUpdate, state: 'checking', error: undefined } }));
     try {
       const info = await window.electronAPI.checkYtdlpUpdate();
-      set({ ytdlpUpdate: { ...info, state: info.outdated ? 'outdated' : 'up-to-date' } });
+      set({ ytdlpUpdate: { ...info, state: stateFromInfo(info) } });
     } catch (err: any) {
       set((s) => ({ ytdlpUpdate: { ...s.ytdlpUpdate, state: 'error', error: err?.message || String(err) } }));
     }
@@ -77,12 +84,12 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       // まず比較だけして、更新が要る時だけ 'updating' に遷移（バナー表示はここから）
       const info = await window.electronAPI.checkYtdlpUpdate();
       if (!info.outdated) {
-        set({ ytdlpUpdate: { ...info, state: 'up-to-date' } });
+        set({ ytdlpUpdate: { ...info, state: stateFromInfo(info) } });
         return;
       }
       set({ ytdlpUpdate: { ...info, state: 'updating', percent: 0 } });
       const result = await window.electronAPI.updateYtdlp();
-      set({ ytdlpUpdate: { ...result, state: result.updated ? 'updated' : 'up-to-date', percent: undefined } });
+      set({ ytdlpUpdate: { ...result, state: result.updated ? 'updated' : stateFromInfo(result), percent: undefined } });
     } catch (err: any) {
       const message = err?.message || String(err);
       if (auto) console.warn('yt-dlp auto-update failed:', message);
