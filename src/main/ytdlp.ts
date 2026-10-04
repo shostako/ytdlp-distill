@@ -4,16 +4,34 @@ import fs from 'node:fs';
 import { getSetting } from './settings';
 import { findBinary } from './binary-manager';
 
-/** 解像度 → yt-dlpフォーマット文字列（AAC強制） */
+/**
+ * 1080p 以下: H.264 (avc1) + AAC (mp4a) を名指しで選ぶ。
+ * `[ext=mp4]` だけでは YouTube は AV1 (av01) の mp4 を返す（1080p でも）ので、コーデックで絞る。
+ */
+const h264 = (h: number) =>
+  `bestvideo[height<=${h}][vcodec^=avc1]+bestaudio[acodec^=mp4a]` +
+  `/best[height<=${h}][vcodec^=avc1][acodec^=mp4a]` +
+  `/bestvideo[height<=${h}][ext=mp4]+bestaudio[acodec^=mp4a]` +
+  `/bestvideo[height<=${h}]+bestaudio/best[height<=${h}]`;
+
+/**
+ * 1440p 以上: YouTube に H.264 は無い（1080p が上限）。映像は AV1 / VP9 になり、音声だけ AAC を優先する。
+ */
+const highRes = (filter: string) =>
+  `bestvideo${filter}[ext=mp4]+bestaudio[acodec^=mp4a]` +
+  `/bestvideo${filter}+bestaudio[acodec^=mp4a]` +
+  `/bestvideo${filter}+bestaudio/best${filter}`;
+
+/** 解像度 → yt-dlpフォーマット文字列 */
 const FORMAT_MAP: Record<string, string> = {
-  '360p': 'bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=360]+bestaudio/best[height<=360]',
-  '480p': 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/best[height<=480]',
-  '720p': 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]',
-  '1080p': 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]',
-  '1440p': 'bestvideo[height<=1440][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1440]+bestaudio/best[height<=1440]',
-  '2160p': 'bestvideo[height<=2160][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=2160]+bestaudio/best[height<=2160]',
-  'best': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
-  'mp3': 'bestaudio[ext=m4a]/bestaudio',
+  '360p': h264(360),
+  '480p': h264(480),
+  '720p': h264(720),
+  '1080p': h264(1080),
+  '1440p': highRes('[height<=1440]'),
+  '2160p': highRes('[height<=2160]'),
+  'best': highRes(''),
+  'mp3': 'bestaudio[acodec^=mp4a]/bestaudio',
 };
 
 export interface DownloadProgress {

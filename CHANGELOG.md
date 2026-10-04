@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.2] - 2026-10-05
+
+### Fixed
+- Downloads came out as **AV1** video, not H.264, at every resolution including the default 1080p. The format strings only asked for `[ext=mp4]`, and YouTube now serves AV1 in MP4. 360p to 1080p now select H.264 (`vcodec^=avc1`) and AAC (`acodec^=mp4a`) by codec. Checked with `yt-dlp -s` on a 4K test video: 1080p went from `399+258` (av01) to `299+258` (avc1).
+- Audio is selected by codec (`acodec^=mp4a`) instead of by extension for every option, MP3 included.
+
+### Changed
+- 1440p, 4K and Best still download AV1/VP9 video, because YouTube has no H.264 above 1080p. The README now says so instead of promising H.264 for every option.
+
 ## [1.2.1] - 2026-08-26
 
 ### Fixed
