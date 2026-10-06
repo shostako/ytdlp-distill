@@ -14,11 +14,13 @@ Most yt-dlp GUI apps download videos with **Opus audio inside MP4 containers** b
 - Won't play in **car navigation systems**
 - Won't play on **some portable media players**
 
-Distill forces **AAC (M4A) audio** on every download, guaranteeing playback on virtually any device. No configuration needed — it just works.
+Distill asks YouTube for **H.264 video and AAC audio** by name, so the default 1080p (and everything below it) plays on virtually any device. No configuration needed.
+
+Note that selecting by container alone is not enough: `bestvideo[ext=mp4]` returns **AV1** on YouTube today, even at 1080p, and AV1 has the same playback problems on older players.
 
 ## Features
 
-- **Universal playback** — AAC audio in MP4, plays everywhere
+- **Universal playback** — H.264 + AAC in MP4 up to 1080p
 - **Auto-setup** — Downloads yt-dlp, ffmpeg, and deno automatically on first launch
 - **English / 日本語** — Language follows the OS by default; switchable in Settings without restart
 - **Auto-update** — Checks yt-dlp against the latest release on every launch and replaces it when outdated (SHA256 verified). YouTube changes regularly break old yt-dlp versions; you should never have to think about it
@@ -71,25 +73,26 @@ Click the **gear icon** (top right) to change the default download location and 
 | **480p** | Standard definition |
 | **720p** | HD. Good balance of quality and size |
 | **1080p** | Full HD (default). Recommended for most use cases |
-| **1440p** | 2K. Noticeably sharper than 1080p |
-| **4K** | 2160p. Maximum visual quality, large files |
-| **Best** | Highest available quality with no resolution cap |
+| **1440p** | 2K. Noticeably sharper than 1080p. AV1/VP9 video (see below) |
+| **4K** | 2160p. Maximum visual quality, large files. AV1/VP9 video |
+| **Best** | Highest available quality with no resolution cap. AV1/VP9 video |
 | **MP3** | Audio only. Extracts audio and converts to MP3 |
 
-All video options output MP4 with H.264 video and AAC audio for maximum device compatibility.
+360p to 1080p output MP4 with H.264 video and AAC audio. YouTube does not offer H.264 above 1080p, so **1440p, 4K and Best come as AV1 (or VP9) video** with AAC audio. They play in modern browsers and players, but not on the older devices this app is meant for; pick 1080p when compatibility matters. AAC is preferred for every option; if a video has no AAC stream at all, Distill falls back to whatever audio YouTube offers.
 
 ## How it works
 
-Distill wraps [yt-dlp](https://github.com/yt-dlp/yt-dlp) with a format selection that prioritizes compatibility:
+Distill wraps [yt-dlp](https://github.com/yt-dlp/yt-dlp) with a format selection that names the codecs, not just the container. For 1080p:
 
 ```
-bestvideo[height<=1080][ext=mp4] + bestaudio[ext=m4a]
+bestvideo[height<=1080][vcodec^=avc1] + bestaudio[acodec^=mp4a]
 ```
 
-This ensures:
-- **Video**: H.264 codec in MP4 container
-- **Audio**: AAC codec in M4A (not Opus)
+- **Video**: H.264 (`avc1`) in an MP4 container
+- **Audio**: AAC (`mp4a`), not Opus
 - **Output**: Standard MP4 that any player can handle
+
+If a video has no H.264 stream at that height, it falls back to the best MP4 video, then to any video. The full strings are in `src/main/ytdlp.ts`.
 
 ## Tech stack
 
